@@ -6,6 +6,28 @@ Contributors: Daniel Huang, Felix Meng, and Jason Zhu
 
 This project aims to generate a model which can calculate distortion effects efficiently and accurately given distortion parameters and an undistorted image.
 
+## Setup development environment
+
+```bash
+# Install conda from environment
+conda env create -f environment.yml
+
+# Activate conda environment
+conda activate xplore-mathworks
+```
+
+Updating an existing environment
+
+```bash
+conda env update -f environment.yml --prune
+```
+
+Updating `environment.yml` file
+
+```bash
+conda env export --from-history | grep -v "prefix" > environment.yml
+```
+
 ## Dataset and Data Pipeline
 
 TODO: Complete list of dataset pipeline items
