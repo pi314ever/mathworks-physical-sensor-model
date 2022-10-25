@@ -8,12 +8,14 @@ This project aims to generate a model which can calculate distortion effects eff
 
 ## Setup development environment
 
+Python environment setup
+
 ```bash
 # Install conda from environment
 conda env create -f environment.yml
 
 # Activate conda environment
-conda activate xplore-mathworks
+conda activate xplore
 ```
 
 Updating an existing environment

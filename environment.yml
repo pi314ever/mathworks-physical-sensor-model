@@ -1,7 +1,9 @@
-name: xplore-mathworks
+name: xplore
 channels:
   - defaults
 dependencies:
   - python=3.9
-  - opencv
+  - pip
   - numpy
+  - pip:
+    - opencv-python
