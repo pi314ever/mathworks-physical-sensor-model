@@ -10,17 +10,19 @@ from __future__ import annotations
 
 import itertools
 import json
+import multiprocessing as mp
 import os
 import sys
+import time
 from typing import Optional
-import multiprocessing as mp
 
 import numpy as np
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
-from utils import get_distorted_location, get_param_encoding, get_data_path, get_param_split
+from utils import (get_data_path, get_distorted_location, get_param_encoding,
+                   get_param_split)
 
 # ---------------------------------------------------------------------------- #
 #                              TUNEABLE PARAMETERS                             #
@@ -67,7 +69,9 @@ if __name__ == '__main__':
             hash_to_params = {}
     i = 0
     try:
+        start = time.time()
         with mp.Pool(mp.cpu_count()) as P:
+            results = []
             for params in _distortion_parameter_generator():
                 i += 1
                 encoding = get_param_encoding(params)
@@ -76,8 +80,11 @@ if __name__ == '__main__':
                 X_distorted, Y_distorted = get_distorted_location(X, Y, params[:NUM_K], params[NUM_K:])
                 # Randomly determine if this set is in test/train/val set
                 split = get_param_split(params)
-                P.apply_async(_create_and_save_point_maps, args=(params, encoding, split, X, Y, X_distorted, Y_distorted))
+                results.append(P.apply_async(_create_and_save_point_maps, args=(params, encoding, split, X, Y, X_distorted, Y_distorted)))
                 hash_to_params[encoding] = {'K': params[:NUM_K], 'P': params[NUM_K:], 'split': split}
+            for r in results:
+                r.get()
+        print(f'{i} processes completed in {time.time() - start} seconds')
     except KeyboardInterrupt:
         print('Keyboard interrupt detected, saving hash_to_params.json...')
     # Save hash to params dictionary
