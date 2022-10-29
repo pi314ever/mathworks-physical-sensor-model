@@ -1,0 +1,18 @@
+# File for path constants and helper functions
+
+import os
+
+ROOT_PATH = os.path.dirname(os.path.abspath(os.path.join(__file__,'../../')))
+
+DATA_PATH = os.path.join(ROOT_PATH, 'data')
+
+SOURCE_PATH = os.path.join(ROOT_PATH, 'src')
+
+def get_data_path(*args) -> str:
+    """
+    Wrapper around os join for data path directory
+
+    Returns:
+        str: path to a file in the data directory
+    """
+    return os.path.join(DATA_PATH, *args)

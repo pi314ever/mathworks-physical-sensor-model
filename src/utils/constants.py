@@ -1,0 +1,1 @@
+TRAIN_VAL_TEST_SPLIT = (0.7, 0.2, 0.1)

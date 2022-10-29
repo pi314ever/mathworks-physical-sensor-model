@@ -19,7 +19,7 @@ import numpy as np
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
-from util import get_distorted_location, get_param_encoding
+from utils import get_distorted_location, get_param_encoding, get_data_path, get_param_split
 
 # ---------------------------------------------------------------------------- #
 #                              TUNEABLE PARAMETERS                             #
@@ -36,7 +36,7 @@ DISTORTION_RANGES = (
 
 NUM_K = 3 # Must keep up to date with DISTORTION_RANGES
 
-IMAGE_SIZE = (5, 5)
+IMAGE_SIZE = (256, 256)
 
 # ---------------------------------------------------------------------------- #
 #                            END TUNEABLE PARAMETERS                           #
@@ -54,8 +54,7 @@ def _distortion_parameter_generator() -> itertools.product[tuple[float,...]]:
 # function call
 if __name__ == '__main__':
     print('Generating point mappings...')
-    data_path = os.path.abspath(os.path.join(SCRIPT_DIR, '../../data'))
-    with open(os.path.join(data_path, 'hash_to_params.json'), 'r') as f:
+    with open(get_data_path('hash_to_params.json'), 'r') as f:
         try:
             hash_to_params = json.loads(f.read())
         except:
@@ -65,11 +64,14 @@ if __name__ == '__main__':
         encoding = get_param_encoding(params)
         X, Y = _get_random_grid(seed=int(encoding)) # Seed with parameters to get same outcome every time run on same grid.
         X_distorted, Y_distorted = get_distorted_location(X, Y, params[:NUM_K], params[NUM_K:])
+        # Randomly determine if this set is in test/train/val set
+        split = get_param_split(params)
         # Save to file
-        print(f'Saving {params} to {encoding}')
+        print(f'Saving {params} to {encoding} as {split} set')
         if encoding not in hash_to_params:
-            hash_to_params[encoding] = {'K': params[:NUM_K], 'P': params[NUM_K:]}
-        np.savetxt(os.path.join(data_path, 'point_maps', f'{encoding}.gz'), np.stack((X_distorted, Y_distorted, X, Y), axis=2).reshape((np.prod(IMAGE_SIZE), 4)))
-    with open(os.path.join(data_path, 'hash_to_params.json'), 'w') as f:
+            hash_to_params[encoding] = {'K': params[:NUM_K], 'P': params[NUM_K:], 'split': split}
+        np.savetxt(get_data_path('point_maps', split, f'{encoding}.gz'), np.stack((X_distorted, Y_distorted, X, Y), axis=2).reshape((np.prod(IMAGE_SIZE), 4)))
+    # Save hash to params dictionary
+    with open(get_data_path('hash_to_params.json'), 'w') as f:
         f.write(json.dumps(hash_to_params))
 
