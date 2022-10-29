@@ -32,6 +32,12 @@ conda env export --from-history | grep -v "prefix" > environment.yml
 
 ## Dataset and Data Pipeline
 
+### Point map dataset
+
+Dataset is not included by default (git ignored). To generate the dataset, run `python src/data/generate_point_maps.py`. This will generate the dataset in `data/point_maps/` directory.
+
+### TODOs
+
 TODO: Complete list of dataset pipeline items
 - [ ] Real images dataset
   - [ ] Gather a dataset of undistorted images

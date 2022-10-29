@@ -1,4 +1,5 @@
-
-
-# Python files
+# Python cache files
 __pycache__
+
+# Data files
+*.gz

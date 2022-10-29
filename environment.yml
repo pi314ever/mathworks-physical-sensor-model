@@ -5,5 +5,7 @@ dependencies:
   - python=3.9
   - pip
   - numpy
+  - matplotlib
   - pip:
     - opencv-python
+    - albumentations # For Distortions.ipynb
