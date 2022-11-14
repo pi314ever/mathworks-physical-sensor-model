@@ -1,11 +1,16 @@
 name: xplore
 channels:
   - defaults
+  - conda-forge
 dependencies:
   - python=3.9
   - pip
   - numpy
+  - scipy
   - matplotlib
+  - cudatoolkit=11.2
+  - cudnn=8.1.0
   - pip:
+    - tensorflow
     - opencv-python
     - albumentations # For Distortions.ipynb

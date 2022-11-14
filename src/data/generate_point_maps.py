@@ -22,7 +22,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 from utils import (get_data_path, get_distorted_location, get_param_encoding,
-                   get_param_split)
+                   get_param_split, load_hashmap_data, write_hashmap_data)
 
 # ---------------------------------------------------------------------------- #
 #                              TUNEABLE PARAMETERS                             #
@@ -62,15 +62,11 @@ def _create_and_save_point_maps(params, encoding, split, X, Y, X_distorted, Y_di
 # function call
 if __name__ == '__main__':
     print('Generating point mappings...')
-    with open(get_data_path('hash_to_params.json'), 'r') as f:
-        try:
-            hash_to_params = json.loads(f.read())
-        except:
-            hash_to_params = {}
+    hash_to_params = load_hashmap_data()
     i = 0
     try:
         start = time.time()
-        with mp.Pool(mp.cpu_count()) as P:
+        with mp.Pool(mp.cpu_count() - 1) as P:
             results = []
             for params in _distortion_parameter_generator():
                 i += 1

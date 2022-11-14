@@ -1,7 +1,6 @@
 ### Util library for distorting via polynomials
 
 import json
-import os
 from typing import List, Tuple, Union
 
 import numpy as np
@@ -9,7 +8,7 @@ from numpy.typing import NDArray
 from .paths import get_data_path
 from .constants import TRAIN_VAL_TEST_SPLIT
 
-__all__ = ['get_distorted_location', 'paramType', 'get_param_encoding', 'encodings_to_params', 'get_param_split']
+__all__ = ['get_distorted_location', 'paramType', 'get_param_encoding', 'encodings_to_params', 'get_param_split', 'distort_radial', 'distort_tangential']
 
 paramType = Tuple[float,...]
 
@@ -28,19 +27,77 @@ def get_distorted_location(X: NDArray, Y: NDArray, K: paramType, P: paramType, x
     Returns:
         Tuple[ArrayLike, ArrayLike]: Two arrays of distorted X and Y coordinates
     """
-    radial, tangential = 0, 1
+    X_r, Y_r = distort_radial(X, Y, K)
+    X_dist, Y_dist = distort_tangential(X_r, Y_r, P)
+    return X_dist, Y_dist
+
+    # radial, tangential = 1, 1
+    # radial_max = 1
+    # X_til, Y_til = X - x0, Y - y0
+    # R2 = X_til** 2 + Y_til** 2
+    # # Radial distortion
+    # for i, k in enumerate(K):
+    #     radial += k * R2**(i + 1)
+    #     radial_max += k * np.sqrt(2) ** (i + 1)
+    # X_radial = radial * X_til / radial_max
+    # Y_radial = radial * Y_til / radial_max
+    # R2_radial = X_radial** 2 + Y_radial** 2
+    # # Tangential distortion
+    # for i, p in enumerate(P[2:]):
+    #     tangential += p * R2_radial **(i + 1)
+    # X_distorted = tangential * (2 * P[0] * X_radial * Y_radial + P[1] * (R2_radial + 2 * X_radial** 2))
+    # Y_distorted = tangential * (P[0] * (R2_radial + 2 * Y_radial** 2) + 2 * P[1] * X_radial * Y_radial)
+    # return X_distorted, Y_distorted
+
+def distort_radial(X: NDArray, Y: NDArray, K: paramType, x0: float=0, y0: float=0) -> Tuple[NDArray, NDArray]:
+    """
+    Generates radial distortion for each X, Y location. Each coordinate must be bounded by 0 <= x-x0,y-y0 <= 1
+
+    Args:
+        X (ArrayLike): X coordinates of each pixel
+        Y (ArrayLike): Y coordinates of each pixel
+        K (Iterable[float]): Radial distortion coefficients
+        x0 (float, optional): Center of distortion (x). Defaults to 0.
+        y0 (float, optional): Center of distortion (y). Defaults to 0.
+
+    Returns:
+        Tuple[ArrayLike, ArrayLike]: Two arrays of distorted X and Y coordinates
+    """
+    radial, radial_max = 1, 1
     X_til, Y_til = X - x0, Y - y0
     R2 = X_til** 2 + Y_til** 2
+    # Radial distortion
     for i, k in enumerate(K):
         radial += k * R2**(i + 1)
-    if len(P) > 2:
-        for i, p in enumerate(P[2:]):
-            tangential += p * R2 **(i + 1)
-    X_distorted = X + radial * X_til
-    X_distorted += tangential * (P[0] * (R2 + 2 * X_til** 2) + 2 * P[1] * X_til * Y_til)
-    Y_distorted = Y + radial * Y_til
-    Y_distorted += tangential * (P[1] * (R2 + 2 * Y_til** 2) + 2 * P[0] * X_til * Y_til)
-    return X_distorted, Y_distorted
+        radial_max += k * np.sqrt(2) ** (i + 1)
+    X_radial = radial * X_til * (1 / radial_max)
+    Y_radial = radial * Y_til * (1 / radial_max)
+    return X_radial, Y_radial
+
+def distort_tangential(X: NDArray, Y: NDArray, P: Tuple[float, float], x0: float=0, y0: float=0) -> Tuple[NDArray, NDArray]:
+    """
+    Converts X, Y points using a tangential distortion function. Only works for 2 tangential parameters and 0 <= x-x0,y-y0 <= 1
+
+    Args:
+        X (NDArray): X coordinates of each pixel
+        Y (NDArray): Y coordinates of each pixel
+        P (paramType): Tangential distortion parameters
+        x0 (float, optional): Optical center, x. Defaults to 0.
+        y0 (float, optional): Optical center, y. Defaults to 0.
+
+    Returns:
+        Tuple[NDArray, NDArray]: X, Y distorted points
+    """
+    tangential = 1
+    x_scale = 1 + (2 * P[0] + 4 * P[1])
+    y_scale = 1 + (4 * P[0] + 2 * P[1])
+    X_til, Y_til = X - x0, Y - y0
+    R2 = X_til **2 + Y**2
+    X_tangential = (X_til + (2 * P[0] * X_til * Y_til + P[1] * (R2 + 2 * X_til **2) )) / x_scale
+    Y_tangential = (Y_til + (P[0] * (R2 + 2 * Y_til **2) + 2 * P[1] * X_til * Y_til)) / y_scale
+    return X_tangential, Y_tangential
+
+
 
 def get_param_encoding(params: tuple[float,...]) -> str:
     """
@@ -53,7 +110,6 @@ def get_param_encoding(params: tuple[float,...]) -> str:
         str: Filename
     """
     return str(abs(hash(params)))
-    # return sha256(str(params).encode()).hexdigest()
 
 def encodings_to_params(encodings: Union[str, List[str]]) -> tuple[Union[paramType, list[paramType], None], Union[paramType, list[paramType], None]]:
     """
@@ -88,7 +144,7 @@ def encodings_to_params(encodings: Union[str, List[str]]) -> tuple[Union[paramTy
         return None, None
     return hash_to_params[encodings]['K'], hash_to_params[encodings]['P']
 
-def get_param_split(params: paramType):
+def get_param_split(params: paramType) -> str:
     return np.random.default_rng(seed=int(get_param_encoding(params))).choice(
             ['train', 'val', 'test'],
             p=TRAIN_VAL_TEST_SPLIT,
