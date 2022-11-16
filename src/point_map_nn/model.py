@@ -37,7 +37,7 @@ if __name__ == '__main__':
     model = create_model(layer_sizes=[16, 16, 16])
     model.summary()
     # model.load_weights('point_map_nn.h5')
-    model = train_model(model, epochs=100, batch_size = 100)
+    model = train_model(model, epochs=30, batch_size = 100)
     model.save('point_map_nn.h5')
     X_test, Y_test = get_point_map_data('test')
     print(test_model(model, X_test, Y_test))

@@ -22,7 +22,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 from utils import (get_data_path, get_distorted_location, get_param_encoding,
-                   get_param_split, load_hashmap_data, write_hashmap_data)
+                   get_param_split, load_hashmap_data, write_hashmap_data, find_data)
 
 # ---------------------------------------------------------------------------- #
 #                              TUNEABLE PARAMETERS                             #
@@ -30,11 +30,11 @@ from utils import (get_data_path, get_distorted_location, get_param_encoding,
 
 DISTORTION_RANGES = (
     # (min, max, step)
-    (-0.05, 0.05, 0.01), # k1
-    (-0.05, 0.05, 0.01), # k2
-    (-0.05, 0.05, 0.01), # k3
-    (-0.05, 0.05, 0.01), # p1
-    (-0.05, 0.05, 0.01), # p2
+    (-0.04, 0.041, 0.01), # k1
+    (-0.04, 0.041, 0.01), # k2
+    (-0.04, 0.041, 0.01), # k3
+    (-0.04, 0.041, 0.01), # p1
+    (-0.04, 0.041, 0.01), # p2
 )
 
 NUM_K = 3 # Must keep up to date with DISTORTION_RANGES
@@ -88,3 +88,11 @@ if __name__ == '__main__':
     if len(hash_to_params) != i:
         print(f'WARNING: Hash collision detected. Missing {i - len(hash_to_params)} parameters.')
 
+    # Check size of training + val data and see if it fits within 20GB = 20 * 1024 * 1024 * 1024 bytes
+    train_val_size = 0
+    for split in ['train', 'val']:
+        for filename in find_data('point_maps', split):
+            train_val_size += os.path.getsize(filename)
+    print(f'Training and validation dataset takes up {train_val_size} bytes or {train_val_size / (1024 * 1024 * 1024)} GB')
+    if train_val_size >= 20 * 1024 * 1024 * 1024:
+        print('WARNING: Data surpasses 20 GB')
