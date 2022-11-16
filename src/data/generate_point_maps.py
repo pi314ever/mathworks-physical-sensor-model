@@ -30,22 +30,22 @@ from utils import (get_data_path, get_distorted_location, get_param_encoding,
 
 DISTORTION_RANGES = (
     # (min, max, step)
-    (-0.03, 0.03, 0.01), # k1
-    (-0.03, 0.03, 0.01), # k2
-    (-0.03, 0.03, 0.01), # k3
-    (-0.03, 0.03, 0.01), # p1
-    (-0.03, 0.03, 0.01), # p2
+    (-0.05, 0.05, 0.01), # k1
+    (-0.05, 0.05, 0.01), # k2
+    (-0.05, 0.05, 0.01), # k3
+    (-0.05, 0.05, 0.01), # p1
+    (-0.05, 0.05, 0.01), # p2
 )
 
 NUM_K = 3 # Must keep up to date with DISTORTION_RANGES
 
-IMAGE_SIZE = (25, 25)
+IMAGE_SIZE = (50, 50)
 
 # ---------------------------------------------------------------------------- #
 #                            END TUNEABLE PARAMETERS                           #
 # ---------------------------------------------------------------------------- #
 
-def _get_random_grid(minimum: float = 0, maximum: float = 1, seed: Optional[int] = None) -> np.ndarray:
+def _get_random_grid(minimum: float = -1, maximum: float = 1, seed: Optional[int] = None) -> np.ndarray:
     return np.random.default_rng(seed=seed).uniform(
         [minimum] * (2 * np.prod(IMAGE_SIZE)),
         [maximum] * (2 * np.prod(IMAGE_SIZE))
@@ -84,8 +84,7 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print('Keyboard interrupt detected, saving hash_to_params.json...')
     # Save hash to params dictionary
-    with open(get_data_path('hash_to_params.json'), 'w') as f:
-        f.write(json.dumps(hash_to_params))
+    write_hashmap_data(hash_to_params)
     if len(hash_to_params) != i:
         print(f'WARNING: Hash collision detected. Missing {i - len(hash_to_params)} parameters.')
 

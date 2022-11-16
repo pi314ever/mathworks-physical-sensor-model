@@ -34,12 +34,13 @@ def test_model(model: Sequential, X_test, Y_test):
 
 if __name__ == '__main__':
     print(tf.config.list_physical_devices('GPU'))
-    model = create_model(layer_sizes=[16, 16, 16, 16])
+    model = create_model(layer_sizes=[16, 16, 16])
+    model.summary()
     # model.load_weights('point_map_nn.h5')
-    model = train_model(model, epochs=100)
-    print(model.summary())
+    model = train_model(model, epochs=100, batch_size = 100)
     model.save('point_map_nn.h5')
     X_test, Y_test = get_point_map_data('test')
+    print(test_model(model, X_test, Y_test))
     for x, y in zip(X_test, Y_test):
         print(x)
         print(model.predict(x.reshape((1, 7))))
