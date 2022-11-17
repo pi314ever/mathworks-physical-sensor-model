@@ -22,8 +22,14 @@ def create_model(layer_sizes=[16, 16], activation='relu', optimizer='adam', loss
     return model
 
 def train_model(model: Sequential, epochs=10, batch_size=None):
+    print('Gathering data...')
+    print('Gathered training data...')
     X_train, Y_train = get_point_map_data('train')
+    print(f'Training data of size {X_train.shape}, {Y_train.shape} obtained')
+    print('Gathering validation data...')
     X_val, Y_val = get_point_map_data('val')
+    print(f'Validation data of size {X_val.shape}, {Y_val.shape} obtained')
+    print('Finished gathering data')
     model.fit(X_train, Y_train, epochs=epochs, batch_size=batch_size,validation_data=(X_val, Y_val))
     return model
 
@@ -37,7 +43,7 @@ if __name__ == '__main__':
     model = create_model(layer_sizes=[16, 16, 16])
     model.summary()
     # model.load_weights('point_map_nn.h5')
-    model = train_model(model, epochs=30, batch_size = 100)
+    model = train_model(model, epochs=20, batch_size = 100)
     model.save('point_map_nn.h5')
     X_test, Y_test = get_point_map_data('test')
     print(test_model(model, X_test, Y_test))

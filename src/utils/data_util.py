@@ -2,6 +2,7 @@
 import json
 from typing import TypedDict
 import ntpath
+import multiprocessing as mp
 
 import numpy as np
 from numpy.typing import NDArray
@@ -36,7 +37,6 @@ def get_point_map_data(split: str) -> tuple[NDArray, NDArray]:
         split (str): 'test', 'train', or 'val'
 
     Returns:
-        list[...]: list[(K, P, X_distorted, Y_distorted, X, Y)]
         NDArray, NDArray: Input, Label
     """
     # Load hashmap data
@@ -44,30 +44,33 @@ def get_point_map_data(split: str) -> tuple[NDArray, NDArray]:
         raise ValueError(f'Invalid split: {split}')
     hash_to_params = load_hashmap_data()
     # Load point map data
-    data = []
     input = []
     label = []
-    for file_path in find_data('point_maps', split):
-        point_map_data = np.loadtxt(file_path)
-        encoding = ntpath.basename(file_path).split('.')[0]
+    results = []
+
+    with mp.Pool(mp.cpu_count() - 1) as P:
+        file_paths = []
+        num_files = 0
+        for file_path in find_data('point_maps', split):
+            file_paths.append(file_path)
+            results.append(P.apply_async(np.loadtxt, args=(file_path,)))
+            num_files += 1
+        # Load sizes from first filepath
+        first_point_map_data = results[0].get()
+        encoding = ntpath.basename(file_paths[0]).split('.')[0]
         params = hash_to_params[encoding]
-        data.append((params['K'], params['P'], point_map_data[:, 0], point_map_data[:, 1], point_map_data[:, 2], point_map_data[:, 3]))
-        N = point_map_data.shape[0]
-        for i in range(N):
-            input.append([
-                point_map_data[i, 0],
-                point_map_data[i, 1],
-                params['K'][0],
-                params['K'][1],
-                params['K'][2],
-                params['P'][0],
-                params['P'][1]
-            ])
-            label.append([
-                point_map_data[i, 2],
-                point_map_data[i, 3]
-            ])
-    return np.array(input), np.array(label)
+        num_K, num_P = len(params['K']), len(params['P'])
+        N = first_point_map_data.shape[0]
+        input = np.ndarray((N * num_files, 2 + num_K + num_P))
+        label = np.ndarray((N * num_files, 2))
+        for i, r in enumerate(results):
+            point_map_data = r.get()
+            encoding = ntpath.basename(file_paths[i]).split('.')[0]
+            params = hash_to_params[encoding]
+            input[N*i:N*(i+1), :2] = point_map_data[:, :2]
+            input[N*i:N*(i+1), 2:] = [k for k in params['K']] + [p for p in params['P']]
+            label[N*i:N*(i+1), :] = point_map_data[:, 2:]
+    return input, label
 
 if __name__ == '__main__':
     print(get_point_map_data('test'))
