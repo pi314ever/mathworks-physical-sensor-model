@@ -33,11 +33,17 @@ def get_point_map_data(split: str) -> tuple[NDArray, NDArray]:
     """
     Gathers all point map data from given split.
 
+
+
     Args:
         split (str): 'test', 'train', or 'val'
 
     Returns:
         NDArray, NDArray: Input, Label
+    Input:
+        x_d, y_d, r**2, *[K], *[P]
+    Label:
+        x, y
     """
     # Load hashmap data
     if split not in ['test', 'train', 'val']:
@@ -61,14 +67,15 @@ def get_point_map_data(split: str) -> tuple[NDArray, NDArray]:
         params = hash_to_params[encoding]
         num_K, num_P = len(params['K']), len(params['P'])
         N = first_point_map_data.shape[0]
-        input = np.ndarray((N * num_files, 2 + num_K + num_P))
+        input = np.ndarray((N * num_files, 3 + num_K + num_P))
         label = np.ndarray((N * num_files, 2))
         for i, r in enumerate(results):
             point_map_data = r.get()
             encoding = ntpath.basename(file_paths[i]).split('.')[0]
             params = hash_to_params[encoding]
             input[N*i:N*(i+1), :2] = point_map_data[:, :2]
-            input[N*i:N*(i+1), 2:] = [k for k in params['K']] + [p for p in params['P']]
+            input[N*i:N*(i+1), 2] = (point_map_data[:, 0] **2 + point_map_data[:, 1]**2)
+            input[N*i:N*(i+1), 3:] = [k for k in params['K']] + [p for p in params['P']]
             label[N*i:N*(i+1), :] = point_map_data[:, 2:]
     return input, label
 

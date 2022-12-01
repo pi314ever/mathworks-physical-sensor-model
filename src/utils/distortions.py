@@ -31,24 +31,6 @@ def get_distorted_location(X: NDArray, Y: NDArray, K: paramType, P: paramType, x
     X_dist, Y_dist = distort_tangential(X_r, Y_r, P)
     return X_dist, Y_dist
 
-    # radial, tangential = 1, 1
-    # radial_max = 1
-    # X_til, Y_til = X - x0, Y - y0
-    # R2 = X_til** 2 + Y_til** 2
-    # # Radial distortion
-    # for i, k in enumerate(K):
-    #     radial += k * R2**(i + 1)
-    #     radial_max += k * np.sqrt(2) ** (i + 1)
-    # X_radial = radial * X_til / radial_max
-    # Y_radial = radial * Y_til / radial_max
-    # R2_radial = X_radial** 2 + Y_radial** 2
-    # # Tangential distortion
-    # for i, p in enumerate(P[2:]):
-    #     tangential += p * R2_radial **(i + 1)
-    # X_distorted = tangential * (2 * P[0] * X_radial * Y_radial + P[1] * (R2_radial + 2 * X_radial** 2))
-    # Y_distorted = tangential * (P[0] * (R2_radial + 2 * Y_radial** 2) + 2 * P[1] * X_radial * Y_radial)
-    # return X_distorted, Y_distorted
-
 def distort_radial(X: NDArray, Y: NDArray, K: paramType, x0: float=0, y0: float=0) -> Tuple[NDArray, NDArray]:
     """
     Generates radial distortion for each X, Y location. Each coordinate must be bounded by 0 <= x-x0,y-y0 <= 1
@@ -96,8 +78,6 @@ def distort_tangential(X: NDArray, Y: NDArray, P: Tuple[float, float], x0: float
     X_tangential = (X_til + (2 * P[0] * X_til * Y_til + P[1] * (R2 + 2 * X_til **2) )) / x_scale
     Y_tangential = (Y_til + (P[0] * (R2 + 2 * Y_til **2) + 2 * P[1] * X_til * Y_til)) / y_scale
     return X_tangential, Y_tangential
-
-
 
 def get_param_encoding(params: tuple[float,...]) -> str:
     """
