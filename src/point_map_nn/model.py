@@ -50,18 +50,19 @@ if __name__ == '__main__':
     LOSS = args.loss
     REGULARIZATION_CONSTANT = args.regularization
 
-    MODEL_FILE = f'{args.model_name}.h5'
+    MODEL_FILE = f'model_weights/{args.model_name}.h5'
 else:
     LOSS = 'mse'
     LOAD_MODEL = False
-    MODEL_FILE = 'point_map_nn.h5'
+    MODEL_FILE = 'model_weights/point_map_nn.h5'
     TRAIN_MODEL = True
+    REGULARIZATION_CONSTANT = 0.01
 
 # ----------------------------- END CONFIGURATION ---------------------------- #
 
-def create_model(layer_sizes=LAYER_SIZES, activation='relu', optimizer='adam', loss=LOSS, metrics=['mse']):
-    layers = [tf.keras.layers.Dense(layer_sizes[0], activation=activation, input_shape=(8,), activity_regularizer=tf.keras.regularizers.l2(REGULARIZATION_CONSTANT))]
-    layers += [tf.keras.layers.Dense(layer_size, activation=activation, activity_regularizer=tf.keras.regularizers.L2(REGULARIZATION_CONSTANT)) for layer_size in layer_sizes[1:]]
+def create_model(layer_sizes=LAYER_SIZES, activation='relu', optimizer='adam', loss=LOSS, metrics=['mse'], reg=REGULARIZATION_CONSTANT):
+    layers = [tf.keras.layers.Dense(layer_sizes[0], activation=activation, input_shape=(8,), activity_regularizer=tf.keras.regularizers.l2(reg))]
+    layers += [tf.keras.layers.Dense(layer_size, activation=activation, activity_regularizer=tf.keras.regularizers.L2(reg)) for layer_size in layer_sizes[1:]]
     model = tf.keras.Sequential(
         layers=layers + [tf.keras.layers.Dense(2, activation='linear')]
     )
@@ -69,13 +70,12 @@ def create_model(layer_sizes=LAYER_SIZES, activation='relu', optimizer='adam', l
     return model
 
 def train_model(model: Sequential, X_train, Y_train, X_val, Y_val, epochs=10, batch_size=None):
-    model.fit(X_train, Y_train, epochs=epochs, batch_size=batch_size,validation_data=(X_val, Y_val))
+    model.fit(X_train, Y_train, epochs=epochs, batch_size=batch_size,validation_data=(X_val, Y_val), validation_batch_size=999999999999)
     return model
 
 def test_model(model: Sequential, X_test, Y_test):
     err = model.evaluate(X_test, Y_test, batch_size = 99999999999999)
     return err
-
 
 if __name__ == '__main__':
     import visualize
@@ -93,11 +93,16 @@ if __name__ == '__main__':
         X_val, Y_val = get_point_map_data('val')
         print(f'Validation data of size {X_val.shape}, {Y_val.shape} obtained')
         print('Finished gathering data')
-        model = train_model(model, X_train, Y_train, X_val, Y_val, epochs=100, batch_size = 10000)
-    model.save(MODEL_FILE)
-    X_test, Y_test = get_point_map_data('test')
-    print(test_model(model, X_test, Y_test))
-    Y_pred = model.predict(X_test, batch_size=999999999999)
+        model.fit(X_train, Y_train, epochs=100, batch_size=10000,validation_data=(X_val, Y_val), validation_batch_size=999999999999)
+        model.save(MODEL_FILE)
+
     if args and args.save_plots:
-        visualize.plot_errors(Y_test, Y_pred, title=f'Neural Network Predicted Errors with {args.loss.upper()} Loss', filename=f'errors_histogram_full_{args.model_name}.png')
-        visualize.plot_scatter(Y_test, Y_pred, title=f'Neural Network Predicted Sample with {args.loss.upper()} Loss', filename=f'scatter_sample_{args.model_name}.png')
+        if not TRAIN_MODEL:
+            X_val, Y_val = get_point_map_data('val')
+        Y_pred = model.predict(X_val, batch_size=999999999999)                              # type: ignore # Caught by `if not TRAIN_MODEL` block
+        visualize.plot_errors(Y_val, Y_pred,                                                         # type: ignore # Caught by `if not TRAIN_MODEL` block
+            title=f'Predicted Errors with {args.loss.upper()} Loss ({args.regularization} Reg)',
+            filename=f'errors_histogram_full_{args.model_name}_{str(args.regularization).split(".")[-1]}.png')
+        visualize.plot_scatter(Y_val, Y_pred,                                                        # type: ignore # Caught by `if not TRAIN_MODEL` block
+            title=f'Scatterplot Sample with {args.loss.upper()} Loss ({args.regularization} Reg)',
+            filename=f'scatter_sample_{args.model_name}_{str(args.regularization).split(".")[-1]}.png')
