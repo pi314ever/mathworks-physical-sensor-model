@@ -44,25 +44,26 @@ if __name__ == '__main__':
     model_mae_0.load_weights('model_weights/mae_point_map_no_reg.h5')
     print('Predicting MAE models...')
     fig = plt.figure()
+    cutoff = 0.05
     print('Reg 0')
     Y_pred_mae_0 = model_mae_0.predict(X_val, batch_size = 99999999999999)
     R_mae_0 = np.sqrt((Y_val[:, 0] - Y_pred_mae_0[:,0]) ** 2 + (Y_val[:, 1] - Y_pred_mae_0[:, 1]) ** 2)
-    plt.hist(R_mae_0[R_mae_0 < 0.1], 200, label=f'MAE 0: {len(R_mae_0[R_mae_0 < 0.1])} of {len(R_mae_0)} shown')
+    plt.hist(R_mae_0[R_mae_0 < cutoff], 200, label=f'MAE 0: {len(R_mae_0[R_mae_0 < cutoff])} of {len(R_mae_0)} shown')
     del model_mae_0, Y_pred_mae_0, R_mae_0
     print('Reg 0.005')
     Y_pred_mae_005 = model_mae_005.predict(X_val, batch_size = 99999999999999)
     R_mae_005 = np.sqrt((Y_val[:, 0] - Y_pred_mae_005[:,0]) ** 2 + (Y_val[:, 1] - Y_pred_mae_005[:, 1]) ** 2)
-    plt.hist(R_mae_005[R_mae_005 < 0.1], 200, label=f'MAE 0.005: {len(R_mae_005[R_mae_005 < 0.1])} of {len(R_mae_005)} shown', alpha=0.5)
+    plt.hist(R_mae_005[R_mae_005 < cutoff], 200, label=f'MAE 0.005: {len(R_mae_005[R_mae_005 < cutoff])} of {len(R_mae_005)} shown', alpha=0.5)
     del model_mae_005, Y_pred_mae_005, R_mae_005
     print('Reg 0.01')
     Y_pred_mae_01 = model_mae_01.predict(X_val, batch_size = 99999999999999)
     R_mae_01 = np.sqrt((Y_val[:, 0] - Y_pred_mae_01[:,0]) ** 2 + (Y_val[:, 1] - Y_pred_mae_01[:, 1]) ** 2)
-    plt.hist(R_mae_01[R_mae_01 < 0.1], 200, label=f'MAE 0.01: {len(R_mae_01[R_mae_01 < 0.1])} of {len(R_mae_01)} shown', alpha=0.25)
+    plt.hist(R_mae_01[R_mae_01 < cutoff], 200, label=f'MAE 0.01: {len(R_mae_01[R_mae_01 < cutoff])} of {len(R_mae_01)} shown', alpha=0.25)
     del model_mae_01, Y_pred_mae_01, R_mae_01
     print('Reg 0.03')
     Y_pred_mae_03 = model_mae_03.predict(X_val, batch_size = 99999999999999)
     R_mae_03 = np.sqrt((Y_val[:, 0] - Y_pred_mae_03[:,0]) ** 2 + (Y_val[:, 1] - Y_pred_mae_03[:, 1]) ** 2)
-    plt.hist(R_mae_03[R_mae_03 < 0.1], 200, label=f'MAE 0.03: {len(R_mae_03[R_mae_03 < 0.1])} of {len(R_mae_03)} shown', alpha=0.125)
+    plt.hist(R_mae_03[R_mae_03 < cutoff], 200, label=f'MAE 0.03: {len(R_mae_03[R_mae_03 < cutoff])} of {len(R_mae_03)} shown', alpha=0.25)
     del model_mae_03, Y_pred_mae_03, R_mae_03
     print('Done')
     plt.xlabel('Radial distance')
