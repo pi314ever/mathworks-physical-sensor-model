@@ -9,10 +9,13 @@ Proposed format:
 - src/
   - \<model name\>/
     - \<model implementation files\>
+    - Model specific
   - data/
     - \<data collection files\>
+    - Files that operate on the project-specific data
   - util/
     - \<common utility files\>
+    - Generalized utility modules
 
 
 ## Scripts

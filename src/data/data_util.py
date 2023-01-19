@@ -1,16 +1,13 @@
 ### Utility functions for extracting data from data files
 import json
-from typing import TypedDict
+from typing import TypedDict, Union, List
 import ntpath
 import multiprocessing as mp
 
 import numpy as np
 from numpy.typing import NDArray
 
-from .paths import get_data_path, find_data
-
-__all__ = ['load_hashmap_data', 'get_point_map_data', 'write_hashmap_data']
-
+from utils import get_data_path, find_data, paramType, TRAIN_VAL_TEST_SPLIT
 
 class HashDictType(TypedDict):
     K: tuple[float,...]
@@ -78,6 +75,58 @@ def get_point_map_data(split: str) -> tuple[NDArray, NDArray]:
             input[N*i:N*(i+1), 3:] = [k for k in params['K']] + [p for p in params['P']]
             label[N*i:N*(i+1), :] = point_map_data[:, 2:]
     return input, label
+
+
+def get_param_encoding(params: tuple[float,...]) -> str:
+    """
+    Generates a string encoding from a set of distortion parameters
+
+    Args:
+        params (tuple[float]): Distortion parameters
+
+    Returns:
+        str: Filename
+    """
+    return str(abs(hash(params)))
+
+def encodings_to_params(encodings: Union[str, List[str]]) -> tuple[Union[paramType, list[paramType], None], Union[paramType, list[paramType], None]]:
+    """
+    Converts a string encoding or a list of string encodings into a set of distortion parameters
+
+    Args:
+        encodings (str | List[str]): Encodings for distortion parameters
+
+    Returns:
+        tuple[K, P]: K and P either a set of parameters or a list of sets of parameters, depending on the input
+    """
+    # Load encoding mapping
+    with open(get_data_path('hash_to_params.json'), 'r') as f:
+        try:
+            hash_to_params = json.loads(f.read())
+        except:
+            hash_to_params = {}
+
+    # Case: encodings is a list
+    if isinstance(encodings, list):
+        K, P = [], []
+        for encoding in encodings:
+            if encoding not in hash_to_params:
+                print(f'Encoding {encoding} not found in hash_to_params.json')
+                continue
+            K.append(hash_to_params[encoding]['K'])
+            P.append(hash_to_params[encoding]['P'])
+
+    # Case: Single encoding
+    if encodings not in hash_to_params:
+        print(f'Encoding {encodings} not found in hash_to_params.json')
+        return None, None
+    return hash_to_params[encodings]['K'], hash_to_params[encodings]['P']
+
+def get_param_split(params: paramType) -> str:
+    return np.random.default_rng(seed=int(get_param_encoding(params))).choice(
+            ['train', 'val', 'test'],
+            p=TRAIN_VAL_TEST_SPLIT,
+        )
 
 if __name__ == '__main__':
     print(get_point_map_data('test'))
