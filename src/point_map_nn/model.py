@@ -54,7 +54,7 @@ if __name__ == '__main__':
 else:
     LOSS = 'mse'
     LOAD_MODEL = False
-    MODEL_FILE = 'model_weights/point_map_nn.h5'
+    MODEL_FILE = 'model_weights/mae_point_map_no_reg.h5'
     TRAIN_MODEL = True
     REGULARIZATION_CONSTANT = 0.01
 

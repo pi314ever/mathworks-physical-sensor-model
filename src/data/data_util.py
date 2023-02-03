@@ -30,8 +30,6 @@ def get_point_map_data(split: str) -> tuple[NDArray, NDArray]:
     """
     Gathers all point map data from given split.
 
-
-
     Args:
         split (str): 'test', 'train', or 'val'
 
