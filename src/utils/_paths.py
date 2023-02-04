@@ -2,7 +2,6 @@
 
 import os
 
-__all__ = ['ROOT_PATH', 'DATA_PATH', 'SOURCE_PATH', 'get_data_path', 'find_data']
 
 ROOT_PATH = os.path.dirname(os.path.abspath(os.path.join(__file__,'../../')))
 

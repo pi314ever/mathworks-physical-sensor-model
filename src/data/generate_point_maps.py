@@ -21,9 +21,9 @@ import numpy as np
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
-from utils import (get_data_path, get_distorted_location, get_param_encoding,
-                   get_param_split, load_hashmap_data, write_hashmap_data, find_data)
+from utils import (get_data_path, get_distorted_location, find_data)
 
+from data_util import (get_point_map_data, get_param_encoding, get_param_split, load_hashmap_data, write_hashmap_data)
 # ---------------------------------------------------------------------------- #
 #                              TUNEABLE PARAMETERS                             #
 # ---------------------------------------------------------------------------- #

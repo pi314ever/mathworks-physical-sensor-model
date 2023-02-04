@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(SCRIPT_DIR))
 import matplotlib.pyplot as plt
 import numpy as np
 
-from utils import get_point_map_data
+from data.data_util import get_point_map_data
 from model import create_model
 
 def plot_scatter(Y_test, Y_pred, title='Neural Network Predicted Sample Points', filename='scatter_sample.png'):
