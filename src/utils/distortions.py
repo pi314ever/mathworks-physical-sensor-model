@@ -1,13 +1,11 @@
 ### Util library for distorting via polynomials
 
-from typing import List, Tuple, Union
+from typing import Tuple
 
 import numpy as np
 from numpy.typing import NDArray
-from ._paths import get_data_path
-from ._constants import TRAIN_VAL_TEST_SPLIT
 
-paramType = Tuple[float,...]
+from .typing import paramType
 
 def get_distorted_location(X: NDArray, Y: NDArray, K: paramType, P: paramType, x0: float = 0, y0: float = 0) -> Tuple[NDArray, NDArray]:
     """
