@@ -7,12 +7,8 @@ import multiprocessing as mp
 import numpy as np
 from numpy.typing import NDArray
 
-from utils import get_data_path, find_data, paramType, TRAIN_VAL_TEST_SPLIT
-
-class HashDictType(TypedDict):
-    K: tuple[float,...]
-    P: tuple[float,...]
-    split: str
+from utils import get_data_path, find_data, TRAIN_VAL_TEST_SPLIT
+from utils.typing import HashDictType, paramType
 
 def load_hashmap_data() -> dict[str, HashDictType]:
     with open(get_data_path('hash_to_params.json'), 'r') as f:
