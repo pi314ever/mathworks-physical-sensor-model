@@ -78,5 +78,5 @@ if __name__ == '__main__':
     model.load_weights('model_weights/mae_point_map_no_reg.h5')
     model.summary()
     pmmp = PointMapModelPipeline(model, 'nearest')
-    distorted_img = pmmp(img, (0.01, 0.01, 0.02), (0.00, 0.00))
+    distorted_img = pmmp(img, (0.01, 0.03, 0.02), (0.00, 0.00))
     write_image(distorted_img, 'images/test_distorted_img.png')
