@@ -48,13 +48,19 @@ class PointMapModelPipeline:
 
         # Grab output image normalized positions to feed into neural network
         scale = max(output_resolution)
+        scale_input = max(images.shape[:2])
 
-        x_min, x_max = -output_resolution[0] / scale, output_resolution[1] / scale
-        y_min, y_max = -output_resolution[1] / scale, output_resolution[0] / scale
+        x_min, x_max = -output_resolution[0] / scale, output_resolution[0] / scale
+        y_min, y_max = -output_resolution[1] / scale, output_resolution[1] / scale
+        x_min_input, x_max_input = -images.shape[0] / scale_input, images.shape[0] / scale_input
+        y_min_input, y_max_input = -images.shape[1] / scale_input, images.shape[1] / scale_input
         # x_min, x_max = -0.5, 0.5
         # y_min, y_max = -0.5, 0.5
         x_range = np.linspace(x_min, x_max, output_resolution[0])
         y_range = np.linspace(y_min, y_max, output_resolution[1])
+        x_range_input = np.linspace(x_min_input, x_max_input, images.shape[0])
+        y_range_input = np.linspace(y_min_input, y_max_input, images.shape[1])
+
 
         # Run output point maps through neural network to get query points
         neural_network_input = np.empty((np.prod(output_resolution), 8))
@@ -64,9 +70,9 @@ class PointMapModelPipeline:
         query_points = self.point_map_model.predict(neural_network_input, batch_size=np.prod(output_resolution))
 
         # Interpolate on all query points
-        interpolated_points_B = interpn((x_range, y_range), images[:,:,0], query_points, method=self.interpolation_model_type, bounds_error=False, fill_value=0)
-        interpolated_points_G = interpn((x_range, y_range), images[:,:,1], query_points, method=self.interpolation_model_type, bounds_error=False, fill_value=0)
-        interpolated_points_R = interpn((x_range, y_range), images[:,:,2], query_points, method=self.interpolation_model_type, bounds_error=False, fill_value=0)
+        interpolated_points_B = interpn((x_range_input, y_range_input), images[:,:,0], query_points, method=self.interpolation_model_type, bounds_error=False, fill_value=0)
+        interpolated_points_G = interpn((x_range_input, y_range_input), images[:,:,1], query_points, method=self.interpolation_model_type, bounds_error=False, fill_value=0)
+        interpolated_points_R = interpn((x_range_input, y_range_input), images[:,:,2], query_points, method=self.interpolation_model_type, bounds_error=False, fill_value=0)
 
         # Convert output point map to images
         return np.stack([interpolated_points_B, interpolated_points_G, interpolated_points_R], axis=-1).reshape(output_resolution[0], output_resolution[1], 3).astype(np.uint8) # type: ignore
@@ -78,5 +84,5 @@ if __name__ == '__main__':
     model.load_weights('model_weights/mae_point_map_no_reg.h5')
     model.summary()
     pmmp = PointMapModelPipeline(model, 'nearest')
-    distorted_img = pmmp(img, (0.01, 0.03, 0.02), (0.00, 0.00))
+    distorted_img = pmmp(img, (0.01, 0.03, 0.02), (0.00, 0.00), output_resolution=(img.shape[0] * 3, img.shape[1] * 3))
     write_image(distorted_img, 'images/test_distorted_img.png')
