@@ -41,7 +41,14 @@ function distorted_img = distort(img, K, P)
     % Assume output shape same as input shape
     shape = size(img);
     max_dim = max(shape);
-    x_min 
+    x_min = -shape(0) / max_dim;
+    x_max = shape(0) / max_dim;
+    y_min = -shape(1) / max_dim;
+    y_max = shape(1) / max_dim;
+    x_range = linspace(x_min, x_max, shape(0));
+    y_range = linspace(y_min, y_max, shape(1));
+    [X, Y] = meshgrid(x_range, y_range);
+
 
 end
 
