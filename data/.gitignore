@@ -1,2 +1,5 @@
-# Ignore images for now
-images/
+# Ignore all files
+*
+
+# Except README
+!README.md
