@@ -1,8 +1,8 @@
-from typing import TypedDict, Tuple
+from typing import TypedDict, Tuple, Literal
 
 class HashDictType(TypedDict):
-    K: tuple[float,...]
-    P: tuple[float,...]
-    split: str
+    coefficients: tuple[float,...]
+    type: Literal['radial', 'tangential']
+    split: Literal['test', 'train', 'val']
 
 paramType = Tuple[float,...]

@@ -3,7 +3,8 @@ import os, sys
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
-from utils import write_hashmap_data, find_data
+from utils._paths import find_data
+from data_util import write_hashmap_data
 
 
 DELETE_HASH = True
