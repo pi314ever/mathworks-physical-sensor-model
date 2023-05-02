@@ -10,31 +10,28 @@ import multiprocessing as mp
 import os
 import sys
 from argparse import ArgumentParser
-from tqdm import tqdm
-import tensorflow as tf
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
-from utils import get_data_path, distort_radial, distort_tangential
-from utils.typing import distortionType
-from utils.tensors import write_tensor
+import tensorflow as tf
+from tqdm import tqdm
 
-from data_util import (
-    get_param_encoding,
-    get_param_split,
-    load_hashmap_data,
-    write_hashmap_data,
-)
+
+from data_util import (get_param_encoding, get_param_split, load_hashmap_data,
+                       write_hashmap_data)
+from utils import distort_radial, distort_tangential, get_data_path
+from utils.tensors import write_tensor
+from utils.typing import distortionType
 
 # ---------------------------------------------------------------------------- #
 #                              TUNEABLE PARAMETERS                             #
 # ---------------------------------------------------------------------------- #
 
 RESOLUTION = 1920 * 1080
-XY_RANGE = (-1.5, 1.5)
+XY_RANGE = (-1, 1)
 PARAM_RANGE = (-1, 1)
 NUM_K = 3
 NUM_P = 2
