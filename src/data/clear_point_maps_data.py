@@ -15,7 +15,7 @@ SPLITS = ['test','train','val']
 if __name__ == '__main__':
     # Delete hash_to_params
     if DELETE_HASH:
-        write_hashmap_data({})
+        write_hashmap_data()
     if DELETE_DATA:
         for split in SPLITS:
             for filename in find_data('point_maps', split):
