@@ -25,6 +25,7 @@ from data_util import (
     get_param_split,
     load_hashmap_data,
     write_hashmap_data,
+    RESOLUTION,
 )
 from utils import distort_radial, distort_tangential, get_data_path
 from utils.tensors import write_tensor
@@ -34,9 +35,8 @@ from utils.typing import distortionType
 #                              TUNEABLE PARAMETERS                             #
 # ---------------------------------------------------------------------------- #
 
-RESOLUTION = 1920 * 1080
 XY_RANGE = (-1, 1)
-PARAM_RANGE = (-0.2, 0.2)
+PARAM_RANGE = (-0.1, 0.1)
 NUM_K = 3
 NUM_P = 2
 
@@ -80,7 +80,7 @@ def generate_save(distortion: distortionType, model_path, i):
     params = tuple(float(p) for p in params)
     split = get_param_split(params, distortion)
     encoding = get_param_encoding(params, distortion)
-    filename = os.path.join(model_path, split, f"{encoding}.tf")
+    filename = os.path.join(model_path, split, f"{encoding}.dat")
     out = encoding, dict(params=params, distortion=distortion, split=split)
     if os.path.exists(filename):
         return out

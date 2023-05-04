@@ -134,7 +134,10 @@ def create_dataset(
         ds = ds.take(n_samples)
     ds = (
         ds.batch(16)
-        .map(process_inputs, num_parallel_calls=tf.data.AUTOTUNE)
+        .map(
+            lambda XY, XYd, params: (process_inputs(XYd, params), XY),
+            num_parallel_calls=tf.data.AUTOTUNE,
+        )
         .prefetch(tf.data.AUTOTUNE)
         .unbatch()
     )
@@ -153,25 +156,23 @@ def _generator(file_paths, params_list):
         yield data[:, :-2], data[:, -2:], params
 
 
-def process_inputs(XY, XYd, params):
+def process_inputs(XYd, params):
     input = tf.concat(
         (XYd, tf.repeat(tf.reshape(params, (-1, 1, params.shape[1])), XYd.shape[1], 1)),
         axis=2,
     )
-    output = XY
-    return input, output
+    return input
 
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    ds, n = create_dataset(
-        split="valid", model_type="combined", n_params=5
-    )
+    ds, n = create_dataset(split="valid", model_type="combined", n_params=5)
     for i, batch in tqdm(enumerate(ds), desc="Dataset", total=n):
         if i == 0:
             print(batch[0])
         plt.figure()
         plt.scatter(batch[0][:, 0], batch[0][:, 1])
+        plt.title(f"Batch {i}: {batch[0][0, 2:]}")
         plt.show()
         plt.close()
