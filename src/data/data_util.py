@@ -2,7 +2,7 @@
 import json
 import os
 import sys
-from typing import List, Union
+from typing import List, Union, Optional
 from hashlib import md5
 from tqdm import tqdm
 
@@ -106,7 +106,9 @@ def write_hashmap_data(hash_to_params: Union[dict[str, HashDictType], None] = No
 
 @validate_split
 @validate_model_type
-def create_dataset(split: str, model_type: str, n_params: int):
+def create_dataset(
+    split: str, model_type: str, n_params: int, n_samples: Optional[int] = None
+):
     """
     Creates a dataset of point maps using pre-generated point map data
     Returns a tuple of (ds, num_files)
@@ -123,15 +125,31 @@ def create_dataset(split: str, model_type: str, n_params: int):
         tf.TensorSpec(shape=(RESOLUTION, 2), dtype=tf.float32),  # type: ignore
         tf.TensorSpec(shape=(n_params,), dtype=tf.float32),  # type: ignore
     )
-    return tf.data.Dataset.from_generator(
-        _generator, output_signature=OUTPUT_SIGNATURE, args=(file_paths, params_list)
-    ), len(file_paths)
+    ds = tf.data.Dataset.from_generator(
+        _generator,
+        output_signature=OUTPUT_SIGNATURE,
+        args=(file_paths, params_list),
+    )
+    if n_samples is not None:
+        ds = ds.take(n_samples)
+    ds = (
+        ds.batch(16)
+        .map(process_inputs, num_parallel_calls=tf.data.AUTOTUNE)
+        .prefetch(tf.data.AUTOTUNE)
+        .unbatch()
+    )
+    samples = n_samples if n_samples is not None else len(file_paths)
+    return ds, samples
 
 
 def _generator(file_paths, params_list):
     for file_path, params in zip(file_paths, params_list):
         file_path = file_path.decode()
-        data = read_tensor(file_path)
+        try:
+            data = read_tensor(file_path)
+        except:
+            print(f"Error reading {file_path}")
+            continue
         yield data[:, :-2], data[:, -2:], params
 
 
@@ -145,14 +163,15 @@ def process_inputs(XY, XYd, params):
 
 
 if __name__ == "__main__":
-    ds, n = create_dataset(split="train", model_type="combined", n_params=5)
-    ds = (
-        ds.batch(16)
-        .map(process_inputs, num_parallel_calls=tf.data.AUTOTUNE)
-        .prefetch(tf.data.AUTOTUNE)
-        .unbatch()
+    import matplotlib.pyplot as plt
+
+    ds, n = create_dataset(
+        split="valid", model_type="combined", n_params=5
     )
     for i, batch in tqdm(enumerate(ds), desc="Dataset", total=n):
         if i == 0:
             print(batch[0])
-        ...
+        plt.figure()
+        plt.scatter(batch[0][:, 0], batch[0][:, 1])
+        plt.show()
+        plt.close()

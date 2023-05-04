@@ -20,8 +20,12 @@ import tensorflow as tf
 from tqdm import tqdm
 
 
-from data_util import (get_param_encoding, get_param_split, load_hashmap_data,
-                       write_hashmap_data)
+from data_util import (
+    get_param_encoding,
+    get_param_split,
+    load_hashmap_data,
+    write_hashmap_data,
+)
 from utils import distort_radial, distort_tangential, get_data_path
 from utils.tensors import write_tensor
 from utils.typing import distortionType
@@ -32,7 +36,7 @@ from utils.typing import distortionType
 
 RESOLUTION = 1920 * 1080
 XY_RANGE = (-1, 1)
-PARAM_RANGE = (-1, 1)
+PARAM_RANGE = (-0.2, 0.2)
 NUM_K = 3
 NUM_P = 2
 
@@ -68,11 +72,11 @@ def generate_save(distortion: distortionType, model_path, i):
     seed = int.from_bytes(bytes(f"{i}_{distortion}_{model_path}", "utf-8"), "little")
     random = tf.random.Generator.from_seed(seed)
     if distortion == "radial":
-        params = random.uniform((NUM_K,), *PARAM_RANGE)
+        params = random.uniform((NUM_K,), *PARAM_RANGE)  # type: ignore
     elif distortion == "tangential":
-        params = random.uniform((NUM_P,), *PARAM_RANGE)
+        params = random.uniform((NUM_P,), *PARAM_RANGE)  # type: ignore
     elif distortion == "combined":
-        params = random.uniform((NUM_K + NUM_P,), *PARAM_RANGE)
+        params = random.uniform((NUM_K + NUM_P,), *PARAM_RANGE)  # type: ignore
     params = tuple(float(p) for p in params)
     split = get_param_split(params, distortion)
     encoding = get_param_encoding(params, distortion)
