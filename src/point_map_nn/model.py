@@ -1,11 +1,3 @@
-### Model class for point maps neural network
-# Inputs: (K, P, X_distorted, Y_distorted)
-# Outputs: (X, Y)
-
-# Script examples:
-# Train with MAE loss and saving plots
-#   python model.py -t -n "mae_point_map" -s --loss "mae"
-
 import argparse
 import os
 import sys
