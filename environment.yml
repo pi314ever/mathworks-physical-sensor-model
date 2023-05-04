@@ -9,6 +9,6 @@ dependencies:
   - scipy
   - matplotlib
   - pip:
-    - tensorflow==2.12
+    - tensorflow==2.10
     - opencv-python
     - tqdm
