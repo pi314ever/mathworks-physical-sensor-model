@@ -11,4 +11,5 @@ dependencies:
   - pip:
     - tensorflow==2.10
     - opencv-python
+    - opencv-python-headless
     - tqdm
