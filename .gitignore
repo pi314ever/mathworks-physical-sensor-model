@@ -3,3 +3,4 @@ __pycache__
 
 # Data files
 *.gz
+hash_to_params.json

@@ -1,77 +1,30 @@
 ### Utility functions for extracting data from data files
 import json
-from typing import TypedDict, Union, List
-import ntpath
-import multiprocessing as mp
+import os
+import sys
+from typing import List, Union, Optional
+from hashlib import md5
+from tqdm import tqdm
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 import numpy as np
+import tensorflow as tf
 from numpy.typing import NDArray
-
-from utils import get_data_path, find_data, TRAIN_VAL_TEST_SPLIT
+from utils import TRAIN_VAL_TEST_SPLIT, find_data, get_data_path
+from utils.arg_checks import validate_split, validate_model_type
+from utils.distortions import distort_radial, distort_tangential
 from utils.typing import HashDictType, paramType
+from utils.tensors import read_tensor, write_tensor
 
-def load_hashmap_data() -> dict[str, HashDictType]:
-    with open(get_data_path('hash_to_params.json'), 'r') as f:
-        try:
-            hash_to_params: dict[str, HashDictType] = json.loads(f.read())
-        except:
-            hash_to_params = {}
-    return hash_to_params
+# Random data generator
+random = np.random.default_rng(10000)
 
-def write_hashmap_data(hash_to_params: dict[str, HashDictType]):
-    with open(get_data_path('hash_to_params.json'), 'w') as f:
-        f.write(json.dumps(hash_to_params))
-
-def get_point_map_data(split: str) -> tuple[NDArray, NDArray]:
-    """
-    Gathers all point map data from given split.
-
-    Args:
-        split (str): 'test', 'train', or 'val'
-
-    Returns:
-        NDArray, NDArray: Input, Label
-    Input:
-        x_d, y_d, r**2, *[K], *[P]
-    Label:
-        x, y
-    """
-    # Load hashmap data
-    if split not in ['test', 'train', 'val']:
-        raise ValueError(f'Invalid split: {split}')
-    hash_to_params = load_hashmap_data()
-    # Load point map data
-    input = []
-    label = []
-    results = []
-
-    with mp.Pool(mp.cpu_count() - 1) as P:
-        file_paths = []
-        num_files = 0
-        for file_path in find_data('point_maps', split):
-            file_paths.append(file_path)
-            results.append(P.apply_async(np.loadtxt, args=(file_path,)))
-            num_files += 1
-        # Load sizes from first filepath
-        first_point_map_data = results[0].get()
-        encoding = ntpath.basename(file_paths[0]).split('.')[0]
-        params = hash_to_params[encoding]
-        num_K, num_P = len(params['K']), len(params['P'])
-        N = first_point_map_data.shape[0]
-        input = np.ndarray((N * num_files, 3 + num_K + num_P))
-        label = np.ndarray((N * num_files, 2))
-        for i, r in enumerate(results):
-            point_map_data = r.get()
-            encoding = ntpath.basename(file_paths[i]).split('.')[0]
-            params = hash_to_params[encoding]
-            input[N*i:N*(i+1), :2] = point_map_data[:, :2]
-            input[N*i:N*(i+1), 2] = (point_map_data[:, 0] **2 + point_map_data[:, 1]**2)
-            input[N*i:N*(i+1), 3:] = [k for k in params['K']] + [p for p in params['P']]
-            label[N*i:N*(i+1), :] = point_map_data[:, 2:]
-    return input, label
+RESOLUTION = 1920 * 1080
 
 
-def get_param_encoding(params: tuple[float,...]) -> str:
+def get_param_encoding(params: tuple[float, ...], distortion: str) -> str:
     """
     Generates a string encoding from a set of distortion parameters
 
@@ -81,9 +34,14 @@ def get_param_encoding(params: tuple[float,...]) -> str:
     Returns:
         str: Filename
     """
-    return str(abs(hash(params)))
+    return str(int(md5((str(params) + distortion).encode("utf-8")).hexdigest(), 16))
 
-def encodings_to_params(encodings: Union[str, List[str]]) -> tuple[Union[paramType, list[paramType], None], Union[paramType, list[paramType], None]]:
+
+def encodings_to_params(
+    encodings: Union[str, List[str]]
+) -> tuple[
+    Union[paramType, list[paramType], None], Union[paramType, list[paramType], None]
+]:
     """
     Converts a string encoding or a list of string encodings into a set of distortion parameters
 
@@ -94,7 +52,7 @@ def encodings_to_params(encodings: Union[str, List[str]]) -> tuple[Union[paramTy
         tuple[K, P]: K and P either a set of parameters or a list of sets of parameters, depending on the input
     """
     # Load encoding mapping
-    with open(get_data_path('hash_to_params.json'), 'r') as f:
+    with open(get_data_path("hash_to_params.json"), "r") as f:
         try:
             hash_to_params = json.loads(f.read())
         except:
@@ -105,23 +63,116 @@ def encodings_to_params(encodings: Union[str, List[str]]) -> tuple[Union[paramTy
         K, P = [], []
         for encoding in encodings:
             if encoding not in hash_to_params:
-                print(f'Encoding {encoding} not found in hash_to_params.json')
+                print(f"Encoding {encoding} not found in hash_to_params.json")
                 continue
-            K.append(hash_to_params[encoding]['K'])
-            P.append(hash_to_params[encoding]['P'])
+            K.append(hash_to_params[encoding]["K"])
+            P.append(hash_to_params[encoding]["P"])
 
     # Case: Single encoding
     if encodings not in hash_to_params:
-        print(f'Encoding {encodings} not found in hash_to_params.json')
+        print(f"Encoding {encodings} not found in hash_to_params.json")
         return None, None
-    return hash_to_params[encodings]['K'], hash_to_params[encodings]['P']
+    return hash_to_params[encodings]["K"], hash_to_params[encodings]["P"]
 
-def get_param_split(params: paramType) -> str:
-    return np.random.default_rng(seed=int(get_param_encoding(params))).choice(
-            ['train', 'val', 'test'],
-            p=TRAIN_VAL_TEST_SPLIT,
+
+def get_param_split(params: paramType, distortion: str) -> str:
+    return np.random.default_rng(
+        seed=int(get_param_encoding(params, distortion))
+    ).choice(
+        ["train", "valid", "test"],
+        p=TRAIN_VAL_TEST_SPLIT,
+    )
+
+
+def load_hashmap_data():
+    try:
+        hash_to_params: dict[str, HashDictType] = json.load(
+            open(get_data_path("hash_to_params.json"), "r")
         )
+    except:
+        hash_to_params = {}
+    return hash_to_params
 
-if __name__ == '__main__':
-    print(get_point_map_data('test'))
 
+def write_hashmap_data(hash_to_params: Union[dict[str, HashDictType], None] = None):
+    if hash_to_params is None:
+        hash_to_params = {}
+    with open(get_data_path("hash_to_params.json"), "w") as f:
+        f.write(json.dumps(hash_to_params))
+
+
+# Dataset
+
+
+@validate_split
+@validate_model_type
+def create_dataset(
+    split: str, model_type: str, n_params: int, n_samples: Optional[int] = None
+):
+    """
+    Creates a dataset of point maps using pre-generated point map data
+    Returns a tuple of (ds, num_files)
+    """
+    hash_to_params = load_hashmap_data()
+    file_paths = list(find_data(f"{model_type}_point_maps", split))
+    params_list = [
+        hash_to_params[f.split(os.path.sep)[-1].split(".")[0]]["params"]
+        for f in file_paths
+    ]
+
+    OUTPUT_SIGNATURE = (
+        tf.TensorSpec(shape=(RESOLUTION, 2), dtype=tf.float32),  # type: ignore
+        tf.TensorSpec(shape=(RESOLUTION, 2), dtype=tf.float32),  # type: ignore
+        tf.TensorSpec(shape=(n_params,), dtype=tf.float32),  # type: ignore
+    )
+    ds = tf.data.Dataset.from_generator(
+        _generator,
+        output_signature=OUTPUT_SIGNATURE,
+        args=(file_paths, params_list),
+    )
+    if n_samples is not None:
+        ds = ds.take(n_samples)
+    ds = (
+        ds.batch(16)
+        .map(
+            lambda XY, XYd, params: (process_inputs(XYd, params), XY),
+            num_parallel_calls=tf.data.AUTOTUNE,
+        )
+        .prefetch(tf.data.AUTOTUNE)
+        .unbatch()
+    )
+    samples = n_samples if n_samples is not None else len(file_paths)
+    return ds, samples
+
+
+def _generator(file_paths, params_list):
+    for file_path, params in zip(file_paths, params_list):
+        file_path = file_path.decode()
+        try:
+            data = read_tensor(file_path)
+        except:
+            print(f"Error reading {file_path}")
+            continue
+        yield data[:, :-2], data[:, -2:], params
+
+
+def process_inputs(XYd, params):
+    input = tf.concat(
+        (XYd, tf.repeat(tf.reshape(params, (-1, 1, params.shape[1])), XYd.shape[1], 1)),
+        axis=2,
+    )
+    return input
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+
+    ds, n = create_dataset(split="valid", model_type="combined", n_params=5)
+    for i, batch in tqdm(enumerate(ds), desc="Dataset", total=n):
+        if i == 0:
+            print(batch[0])
+        plt.figure()
+        plt.scatter(batch[0][:, 0], batch[0][:, 1])
+        plt.title(f"Batch {i}: {batch[0][0, 2:]}")
+        plt.show()
+        plt.close()

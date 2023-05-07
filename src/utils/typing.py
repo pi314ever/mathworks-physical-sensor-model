@@ -1,8 +1,12 @@
-from typing import TypedDict, Tuple
+from typing import TypedDict, Tuple, Literal
+
+paramType = Tuple[float, ...]
+
+distortionType = Literal['radial', 'tangential', 'combined']
+
+splitType = Literal['test', 'train', 'valid']
 
 class HashDictType(TypedDict):
-    K: tuple[float,...]
-    P: tuple[float,...]
-    split: str
-
-paramType = Tuple[float,...]
+    params: paramType
+    distortion: distortionType
+    split: splitType

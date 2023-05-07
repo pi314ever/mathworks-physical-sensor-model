@@ -8,9 +8,8 @@ dependencies:
   - numpy
   - scipy
   - matplotlib
-  - cudatoolkit=11.2
-  - cudnn=8.1.0
   - pip:
-    - tensorflow
+    - tensorflow==2.10
     - opencv-python
-    - albumentations # For Distortions.ipynb
+    - opencv-python-headless
+    - tqdm

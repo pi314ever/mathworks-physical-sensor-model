@@ -1,108 +1,280 @@
-### Model class for point maps neural network
-# Inputs: (K, P, X_distorted, Y_distorted)
-# Outputs: (X, Y)
+import argparse
+import os
+import sys
+from typing import Any
+import numpy as np
+import random
+import pickle
+import datetime
+import time
 
-# Script examples:
-# Train with MAE loss and saving plots
-#   python model.py -t -n "mae_point_map" -s --loss "mae"
+# Remove TF warnings
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
+from fwr13y.d9m.tensorflow import enable_determinism
 import tensorflow as tf
 
-import os, sys
+# Remove randomness
+SEED = 1234
+enable_determinism()
+os.environ["PYTHONHASHSEED"] = str(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
+tf.random.set_seed(SEED)
+
+# Make utils visible
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
-from data.data_util import get_point_map_data
-
-Sequential = tf.keras.models.Sequential
+from data.data_util import create_dataset, process_inputs
 
 
-# ------------------------------- CONFIGURATION ------------------------------ #
-
-args = None  # type: ignore
-LAYER_SIZES = [16, 16, 16, 16]
-
-if __name__ == '__main__':
-    import argparse
-
-    class ModelParserNamespace(argparse.Namespace):
-        train: bool
-        load: bool
-        model_name: str
-        save_plots: bool
-        loss: str
-        regularization: float
-
-    parser = argparse.ArgumentParser(description='Train a neural network to predict point maps')
-    parser.add_argument('-t', '--train', action='store_true', help='Train the model')
-    parser.add_argument('-l', '--load', action='store_true', help='Load a model from a file')
-    parser.add_argument('-n', '--model-name', help='Model name (alphanumeric + _)', type=str, default='point_map_nn')
-    parser.add_argument('-s', '--save-plots', help='Saves plots into corresponding pngs', action='store_true')
-    parser.add_argument('--loss', help='Loss function to be applied. "mse" or "mae".', default='mse')
-    parser.add_argument('-r', '--regularization', help='L2 regularization constant', type=float, default=0.01)
-
-    args: ModelParserNamespace = parser.parse_args()  # type: ignore # Only adding type annotations
-
-
-    LOAD_MODEL = args.load
-    TRAIN_MODEL = args.train
-
-    LOSS = args.loss
-    REGULARIZATION_CONSTANT = args.regularization
-
-    MODEL_FILE = f'model_weights/{args.model_name}.h5'
-else:
-    LOSS = 'mse'
-    LOAD_MODEL = False
-    MODEL_FILE = 'model_weights/mae_point_map_no_reg.h5'
-    TRAIN_MODEL = True
-    REGULARIZATION_CONSTANT = 0.01
-
-# ----------------------------- END CONFIGURATION ---------------------------- #
-
-def create_model(layer_sizes=LAYER_SIZES, activation='relu', optimizer='adam', loss=LOSS, metrics=['mse'], reg=REGULARIZATION_CONSTANT):
-    layers = [tf.keras.layers.Dense(layer_sizes[0], activation=activation, input_shape=(8,), activity_regularizer=tf.keras.regularizers.l2(reg))]
-    layers += [tf.keras.layers.Dense(layer_size, activation=activation, activity_regularizer=tf.keras.regularizers.L2(reg)) for layer_size in layer_sizes[1:]]
-    model = tf.keras.Sequential(
-        layers=layers + [tf.keras.layers.Dense(2, activation='linear')]
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Train a neural network to predict point maps"
     )
-    model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
-    return model
+    parser.add_argument(
+        "model_type",
+        help="Model type",
+        type=str,
+        choices=["combined", "radial", "tangential"],
+    )
+    parser.add_argument(
+        "-s",
+        "--layer_size",
+        help="Layer size (for all hidden layers)",
+        type=int,
+        default=16,
+    )
+    parser.add_argument(
+        "-l", "--num_layers", help="Number of hidden layers", type=int, default=4
+    )
+    parser.add_argument(
+        "-r",
+        "--regularization",
+        help="L2 regularization constant",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument(
+        "-n",
+        "--num_epochs",
+        help="Number of epochs to train for",
+        type=int,
+        default=100,
+    )
+    parser.add_argument("-b", "--batch_size", help="Batch size", type=int, default=32)
+    parser.add_argument(
+        "-w",
+        "--num_workers",
+        help="Number of workers for the fitting process",
+        type=int,
+        default=8,
+    )
+    parser.add_argument(
+        "-c", "--checkpoint", help="Checkpoint file", type=str, default=""
+    )
 
-def train_model(model: Sequential, X_train, Y_train, X_val, Y_val, epochs=10, batch_size=None):
-    model.fit(X_train, Y_train, epochs=epochs, batch_size=batch_size,validation_data=(X_val, Y_val), validation_batch_size=999999999999)
-    return model
+    args = parser.parse_args()
+    args.dir_name = os.path.join(
+        "models",
+        f"{args.model_type}_l{args.num_layers}_s{args.layer_size}_r{args.regularization}",
+    )
+    args.now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    args.model_dir = os.path.join(args.dir_name, f"{args.now}_model")
+    args.log_file = os.path.join(args.dir_name, f"{args.now}.log")
+    args.hist_file = os.path.join(args.dir_name, f"{args.now}_history.pkl")
+    args.layers = [args.layer_size] * args.num_layers
+    args.reg = args.regularization
 
-def test_model(model: Sequential, X_test, Y_test):
-    err = model.evaluate(X_test, Y_test, batch_size = 99999999999999)
-    return err
+    if args.model_type == "combined":
+        args.num_params = 5
+        args.input_size = 7
+    elif args.model_type == "radial":
+        args.num_params = 3
+        args.input_size = 5
+    elif args.model_type == "tangential":
+        args.num_params = 2
+        args.input_size = 4
 
-if __name__ == '__main__':
-    import visualize
-    print(tf.config.list_physical_devices('GPU'))
-    model = create_model()
-    model.summary()
-    if LOAD_MODEL:
-        model.load_weights(MODEL_FILE)
-    if TRAIN_MODEL:
-        print('Gathering data...')
-        print('Gathered training data...')
-        X_train, Y_train = get_point_map_data('train')
-        print(f'Training data of size {X_train.shape}, {Y_train.shape} obtained')
-        print('Gathering validation data...')
-        X_val, Y_val = get_point_map_data('val')
-        print(f'Validation data of size {X_val.shape}, {Y_val.shape} obtained')
-        print('Finished gathering data')
-        model.fit(X_train, Y_train, epochs=100, batch_size=10000,validation_data=(X_val, Y_val), validation_batch_size=999999999999)
-        model.save(MODEL_FILE)
+    os.makedirs(args.dir_name, exist_ok=True)
+    return args
 
-    if args and args.save_plots:
-        if not TRAIN_MODEL:
-            X_val, Y_val = get_point_map_data('val')
-        Y_pred = model.predict(X_val, batch_size=999999999999)                              # type: ignore # Caught by `if not TRAIN_MODEL` block
-        visualize.plot_errors(Y_val, Y_pred,                                                         # type: ignore # Caught by `if not TRAIN_MODEL` block
-            title=f'Predicted Errors with {args.loss.upper()} Loss ({args.regularization} Reg)',
-            filename=f'errors_histogram_full_{args.model_name}_{str(args.regularization).split(".")[-1]}.png')
-        visualize.plot_scatter(Y_val, Y_pred,                                                        # type: ignore # Caught by `if not TRAIN_MODEL` block
-            title=f'Scatterplot Sample with {args.loss.upper()} Loss ({args.regularization} Reg)',
-            filename=f'scatter_sample_{args.model_name}_{str(args.regularization).split(".")[-1]}.png')
+
+class PointMapNN(tf.keras.Model):
+    def __init__(
+        self,
+        model_type,
+        n_params,
+        input_size,
+        layer_sizes,
+        reg,
+        activation="relu",
+    ):
+        super().__init__()
+        self.n_params = n_params
+        self.model_type = model_type
+        self.input_size = input_size
+        self.layer_sizes = layer_sizes
+        assert layer_sizes != [], "Layer sizes must be non-empty"
+        layers = [
+            tf.keras.layers.Dense(
+                layer_sizes[0],
+                activation=activation,
+                input_shape=(input_size,),
+                activity_regularizer=tf.keras.regularizers.l2(reg) if reg else None,
+            )
+        ]
+        for layer_size in layer_sizes[1:]:
+            layers.append(
+                tf.keras.layers.Dense(
+                    layer_size,
+                    activation=activation,
+                    activity_regularizer=tf.keras.regularizers.L2(reg) if reg else None,
+                )
+            )
+        self.model = tf.keras.Sequential(
+            layers=layers
+            + [tf.keras.layers.Dense(2, activation="linear")]
+            # + [tf.keras.layers.BatchNormalization()]
+        )
+        self.compile(optimizer=tf.keras.optimizers.Adam(), loss=loss)
+
+    def call(self, x):
+        return self.model(x)
+
+    def train(
+        self, num_epochs, history_file, model_dir, dir_name, batch_size, num_workers
+    ):
+        # Load datasets
+        train_ds, n_train = create_dataset(
+            split="train", model_type=self.model_type, n_params=self.n_params
+        )
+        valid_ds, n_valid = create_dataset(
+            split="valid", model_type=self.model_type, n_params=self.n_params
+        )
+
+        print(f"Training {self.model_type} model")
+        print("Loss:", self.losses)
+        print("Optimizer:", self.optimizer)
+        print("Metrics:", self.metrics)
+        print("Input size:", self.input_size)
+        print("Layer sizes:", self.layer_sizes)
+
+        start = time.time()
+
+        checkpoints_callback = tf.keras.callbacks.ModelCheckpoint(
+            filepath=os.path.join(
+                dir_name, "checkpoints", "cp-{epoch:04d}-{val_loss:.4f}"
+            ),
+            monitor="val_loss",
+            save_best_only=True,
+        )
+
+        hist = self.fit(
+            train_ds.repeat(),
+            epochs=num_epochs,
+            batch_size=batch_size,
+            shuffle=True,
+            steps_per_epoch=n_train,
+            validation_data=valid_ds,
+            validation_batch_size=batch_size,
+            validation_steps=n_valid,
+            workers=num_workers,
+            use_multiprocessing=True,
+            verbose=2,  # type: ignore
+            callbacks=[checkpoints_callback],
+        )
+
+        print(f"Training took {time.time() - start} seconds")
+
+        # Save model and history
+        self.save(model_dir)
+        pickle.dump(hist, open(history_file, "wb"))
+
+
+class Model:
+    model_type: str
+    model_dirs: list[str]
+
+    def predict(self, XY_distorted, K, P):
+        raise NotImplementedError()
+
+    def __call__(self, *args, **kwds):
+        self.predict(*args, **kwds)
+
+
+class CombinedPMNN(Model):
+    model_type = "combined"
+
+    def __init__(self, model_dir):
+        self.model_dirs = [model_dir]
+        self.model: PointMapNN = tf.keras.models.load_model(model_dir)  # type: ignore
+        if self.model is None:
+            raise ValueError(f"Could not load model from {model_dir}")
+
+    def predict(self, XYd, K, P):
+        return self.model.predict(self.process_inputs(XYd, K, P))
+
+    def process_inputs(self, XYd, *args):
+        params = []
+        for p in args:
+            params.extend(p)
+        return process_inputs(XYd, params)
+
+
+class SeparatePMNN(Model):
+    model_type = "separate"
+
+    def __init__(self, radial_model_dir, tangential_model_dir):
+        self.model_dirs = [radial_model_dir, tangential_model_dir]
+        self.radial_model: PointMapNN = tf.keras.models.load_model(radial_model_dir)  # type: ignore
+        self.tangential_model: PointMapNN = tf.keras.models.load_model(tangential_model_dir)  # type: ignore
+        if self.radial_model is None:
+            raise ValueError(f"Could not load model from {radial_model_dir}")
+        if self.tangential_model is None:
+            raise ValueError(f"Could not load model from {tangential_model_dir}")
+
+    def predict(self, XYd, K, P):
+        XY = self.tangential_model(process_inputs(XYd, P))
+        return self.radial_model(process_inputs(XY, K))
+
+
+def loss(y_true, y_pred):
+    # Average L1 norm loss
+    return tf.reduce_mean(tf.reduce_sum(tf.abs((y_true - y_pred)), axis=1))
+
+
+def main(args):
+    sys.stdout = open(args.log_file, "w")
+    print(args)
+    # Load models
+
+    if args.checkpoint:
+        model = tf.keras.models.load_model(args.checkpoint)
+        if model is None:
+            raise ValueError(f"Could not load model from {args.checkpoint}")
+    else:
+        model = PointMapNN(
+            model_type=args.model_type,
+            n_params=args.num_params,
+            input_size=args.input_size,
+            layer_sizes=args.layers,
+            reg=args.reg,
+        )
+    model.train(
+        args.num_epochs,
+        args.hist_file,
+        args.model_dir,
+        args.dir_name,
+        args.batch_size,
+        args.num_workers,
+    )
+    sys.stdout = sys.__stdout__
+
+
+if __name__ == "__main__":
+    print(tf.config.list_physical_devices("GPU"))
+    args = parse_args()
+    print(args)
+    main(args)
