@@ -1,20 +1,20 @@
 import argparse
+import datetime
 import json
 import os
-import sys
-from typing import Any
-import numpy as np
-import random
 import pickle
-import datetime
-import time
+import random
 import re
+import sys
+import time
+
+import numpy as np
 
 # Remove TF warnings
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
-from fwr13y.d9m.tensorflow import enable_determinism
 import tensorflow as tf
+from fwr13y.d9m.tensorflow import enable_determinism
 
 # Remove randomness
 SEED = 1234
@@ -28,7 +28,7 @@ tf.random.set_seed(SEED)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
-from data.data_util import create_dataset, process_inputs, RESOLUTION
+from data.data_util import RESOLUTION, create_dataset, process_inputs
 
 
 def parse_args():

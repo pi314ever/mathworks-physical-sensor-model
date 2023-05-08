@@ -1,19 +1,20 @@
 ### Utility functions for extracting data from data files
 import json
 import os
-import sys
-from typing import List, Union, Optional
-from hashlib import md5
-from tqdm import tqdm
 import random
+import sys
+from hashlib import md5
+from typing import List, Optional, Union
+
 import numpy as np
+from tqdm import tqdm
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
-from fwr13y.d9m.tensorflow import enable_determinism
 import tensorflow as tf
+from fwr13y.d9m.tensorflow import enable_determinism
 
 # Remove randomness
 SEED = 1234
@@ -25,10 +26,10 @@ tf.random.set_seed(SEED)
 
 from numpy.typing import NDArray
 from utils import TRAIN_VAL_TEST_SPLIT, find_data, get_data_path
-from utils.arg_checks import validate_split, validate_model_type
+from utils.arg_checks import validate_model_type, validate_split
 from utils.distortions import distort_radial, distort_tangential
-from utils.typing import HashDictType, paramType
 from utils.tensors import read_tensor, write_tensor
+from utils.typing import HashDictType, paramType
 
 # Random data generator
 random = np.random.default_rng(10000)

@@ -17,16 +17,14 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
 import tensorflow as tf
-from tqdm import tqdm
-
-
 from data_util import (
+    RESOLUTION,
     get_param_encoding,
     get_param_split,
     load_hashmap_data,
     write_hashmap_data,
-    RESOLUTION,
 )
+from tqdm import tqdm
 from utils import distort_radial, distort_tangential, get_data_path
 from utils.tensors import write_tensor
 from utils.typing import distortionType

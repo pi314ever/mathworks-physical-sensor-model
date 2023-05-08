@@ -1,11 +1,11 @@
-import os, sys
+import os
+import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
+from data_util import load_hashmap_data, write_hashmap_data
 from utils._paths import find_data
-from data_util import write_hashmap_data, load_hashmap_data
-
 
 SPLITS = ["test", "train", "valid"]
 MODEL_TYPES = ["radial", "tangential", "combined"]

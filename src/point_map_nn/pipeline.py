@@ -1,24 +1,23 @@
 # Pipeline class that encapsulates the entire pipeline for the point map nn
 
-import os, sys
+import os
+import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
-import tensorflow as tf
-import numpy as np
 from itertools import product
+from typing import TYPE_CHECKING, Optional, Union
+
+import numpy as np
 from scipy.interpolate import interpn
-
-from utils.images import read_image, write_image
 from utils._paths import get_data_path
-
-from typing import Optional, Union, TYPE_CHECKING
+from utils.images import read_image, write_image
 
 if TYPE_CHECKING:
-    from utils.typing import paramType
-    from numpy.typing import NDArray
     from model import Model
+    from numpy.typing import NDArray
+    from utils.typing import paramType
 
 
 class PointMapModelPipeline:
@@ -130,8 +129,9 @@ class PointMapModelPipeline:
 
 
 if __name__ == "__main__":
-    from model import CombinedPMNN, SeparatePMNN
     from argparse import ArgumentParser
+
+    from model import CombinedPMNN, SeparatePMNN
 
     parser = ArgumentParser()
     parser.add_argument("model_paths", type=str, help="Path to model, from ")
