@@ -18,6 +18,7 @@ from typing import Optional, Union, TYPE_CHECKING
 if TYPE_CHECKING:
     from utils.typing import paramType
     from numpy.typing import NDArray
+    from model import Model
 
 
 class PointMapModelPipeline:
@@ -27,12 +28,10 @@ class PointMapModelPipeline:
     Given initial setup (trained neural network model, interpolation model), the pipeline can be called as a function to distort images
     """
 
-    point_map_model: tf.keras.models.Sequential
+    point_map_model: "Model"
     interpolation_model_type: str
 
-    def __init__(
-        self, point_map_model: tf.keras.models.Sequential, interpolation_model_type: str
-    ) -> None:
+    def __init__(self, point_map_model: "Model", interpolation_model_type: str) -> None:
         self.point_map_model = point_map_model
         if interpolation_model_type not in [
             "linear",
@@ -89,10 +88,16 @@ class PointMapModelPipeline:
         neural_network_input = np.empty((np.prod(output_resolution), 8))
         for i, (x, y) in enumerate(product(x_range, y_range)):
             neural_network_input[i, :] = x, y, x**2 + y**2, *K, *P
+        x_mesh, y_mesh = np.meshgrid(x_range, y_range)
+        x_mesh = x_mesh.flatten()
+        y_mesh = y_mesh.flatten()
+        vstack = np.vstack((x_mesh, y_mesh))
+        vstack = vstack.T
 
-        query_points = self.point_map_model.predict(
-            neural_network_input, batch_size=np.prod(output_resolution)
-        )
+        K_tf = np.array(K)
+        P_tf = np.array(P)
+
+        query_points = self.point_map_model.predict(vstack, K_tf, P_tf)
 
         # Interpolate on all query points
         interpolated_points_B = interpn(
@@ -120,17 +125,32 @@ class PointMapModelPipeline:
             fill_value=0,
         )
 
-        # Convert output point map to images
-        return np.stack([interpolated_points_B, interpolated_points_G, interpolated_points_R], axis=-1).reshape(output_resolution[0], output_resolution[1], 3).astype(np.uint8)  # type: ignore
+        # Convert output point map to images, not sure why the axes are swapped
+        return np.swapaxes(np.stack([interpolated_points_B, interpolated_points_G, interpolated_points_R], axis=-1).reshape(output_resolution[1], output_resolution[0], 3).astype(np.uint8), 0, 1)  # type: ignore
 
 
 if __name__ == "__main__":
-    from model import create_model
+    from model import CombinedPMNN, SeparatePMNN
+    from argparse import ArgumentParser
 
-    img = read_image(get_data_path("images", "checkerboard.jpg"))
-    model = create_model(loss="mse", reg=0)
-    model.load_weights("model_weights/mse_point_map_no_reg.h5")
-    model.summary()
+    parser = ArgumentParser()
+    parser.add_argument("model_paths", type=str, help="Path to model, from ")
+    parser.add_argument(
+        "--image_path", type=str, default=get_data_path("images", "checkerboard.jpg")
+    )
+    parser.add_argument("--device", type=str, default="")
+    args = parser.parse_args()
+    if args.device == "cpu":
+        os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
+    img = read_image(args.image_path)
+    model_paths = args.model_paths.split(",")
+    if len(model_paths) == 1:
+        model = CombinedPMNN(model_paths[0])
+    elif len(model_paths) == 2:
+        model = SeparatePMNN(model_paths[0], model_paths[1])
+    else:
+        raise ValueError("Invalid number of model paths")
+
     pmmp = PointMapModelPipeline(model, "nearest")
     distorted_img = pmmp(
         img,

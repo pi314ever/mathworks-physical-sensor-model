@@ -8,6 +8,7 @@ import random
 import pickle
 import datetime
 import time
+import re
 
 # Remove TF warnings
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
@@ -27,7 +28,7 @@ tf.random.set_seed(SEED)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
-from data.data_util import create_dataset, process_inputs
+from data.data_util import create_dataset, process_inputs, RESOLUTION
 
 
 def parse_args():
@@ -71,9 +72,6 @@ def parse_args():
         help="Number of workers for the fitting process",
         type=int,
         default=8,
-    )
-    parser.add_argument(
-        "-c", "--checkpoint", help="Checkpoint file", type=str, default=""
     )
     parser.add_argument("-L", "--log", action="store_true", help="Log to file")
 
@@ -171,6 +169,16 @@ class PointMapNN(tf.keras.Model):
 
         start = time.time()
 
+        # Load from latest checkpoint if available
+        latest = tf.train.latest_checkpoint(os.path.join(dir_name, "checkpoints"))
+        init_epoch = 0
+        if latest:
+            init_epoch = int(re.findall(r"cp-([0-9]+)-", latest)[0])
+            print(f"Loading model from {latest} at epoch {init_epoch}")
+            self.load_weights(latest)
+        else:
+            print("No checkpoint found, starting from scratch")
+
         checkpoints_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath=os.path.join(
                 dir_name, "checkpoints", "cp-{epoch:04d}-{val_loss:.4f}.ckpt"
@@ -184,6 +192,7 @@ class PointMapNN(tf.keras.Model):
             epochs=num_epochs,
             batch_size=batch_size,
             shuffle=True,
+            initial_epoch=init_epoch,
             steps_per_epoch=n_train,
             validation_data=valid_ds,
             validation_batch_size=batch_size,
@@ -228,16 +237,18 @@ class CombinedPMNN(Model):
         self.model_dirs = [model_dir]
         self.model = load_pmnn_model(model_dir)
 
-    def predict(self, XYd, K, P):
-        return self.model.predict(self.process_inputs(XYd, K, P))
+    def predict(self, XYd, K, P, batch_size=RESOLUTION, **kwargs):
+        return self.model.predict(
+            self.process_inputs(XYd, K, P), batch_size=batch_size, **kwargs
+        )
 
     def process_inputs(self, XYd, *args):
+        XYd = tf.reshape(XYd, (-1, *XYd.shape))
         params = []
         for p in args:
             params.extend(p)
-        params = tf.reshape(tf.constant(params), (-1, len(params), 1))
-        print(params.shape)
-        return process_inputs(XYd, params)
+        params = tf.constant(params)
+        return tf.squeeze(process_inputs(XYd, params))
 
 
 class SeparatePMNN(Model):
@@ -249,8 +260,21 @@ class SeparatePMNN(Model):
         self.tangential_model = load_pmnn_model(tangential_model_dir)
 
     def predict(self, XYd, K, P):
-        XY = self.tangential_model(process_inputs(XYd, P))
-        return self.radial_model(process_inputs(XY, K))
+        XYd = tf.reshape(XYd, (-1, *XYd.shape))
+        XY = self.tangential_model()
+        return self.radial_model(
+            tf.squeeze(
+                process_inputs(
+                    tf.reshape(
+                        tf.squeeze(
+                            self.tangential_model(process_inputs(XYd, tf.constant(P)))
+                        ),
+                        (-1, *XYd.shape),
+                    ),
+                    tf.constant(K),
+                )
+            )
+        )
 
 
 def loss(y_true, y_pred):
@@ -262,19 +286,13 @@ def main(args):
     sys.stdout = open(args.log_file, "w") if args.log else sys.stdout
     print(args)
     # Load models
-
-    if args.checkpoint:
-        model = tf.keras.models.load_model(args.checkpoint)
-        if model is None:
-            raise ValueError(f"Could not load model from {args.checkpoint}")
-    else:
-        model = PointMapNN(
-            model_type=args.model_type,
-            n_params=args.num_params,
-            input_size=args.input_size,
-            layer_sizes=args.layers,
-            reg=args.reg,
-        )
+    model = PointMapNN(
+        model_type=args.model_type,
+        n_params=args.num_params,
+        input_size=args.input_size,
+        layer_sizes=args.layers,
+        reg=args.reg,
+    )
     model.summary()
     model.train(
         args.num_epochs,

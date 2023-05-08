@@ -145,7 +145,7 @@ def create_dataset(
     if n_samples is not None:
         ds = ds.take(n_samples)
     ds = (
-        ds.batch(1)
+        ds.batch(32)
         .map(
             lambda XY, XYd, params: (process_inputs(XYd, params), XY),
             num_parallel_calls=tf.data.AUTOTUNE,
@@ -170,8 +170,11 @@ def _generator(file_paths, params_list):
 
 def process_inputs(XYd, params):
     input = tf.concat(
-        (XYd, tf.repeat(tf.reshape(params, (-1, 1, params.shape[1])), XYd.shape[1], 1)),
-        axis=2,
+        (
+            XYd,
+            tf.repeat(tf.reshape(params, (-1, 1, params.shape[-1])), XYd.shape[-2], 1),
+        ),
+        axis=-1,
     )
     return input
 
