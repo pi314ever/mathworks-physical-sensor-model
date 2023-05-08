@@ -5,12 +5,24 @@ import sys
 from typing import List, Union, Optional
 from hashlib import md5
 from tqdm import tqdm
+import random
+import numpy as np
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
-import numpy as np
+from fwr13y.d9m.tensorflow import enable_determinism
 import tensorflow as tf
+
+# Remove randomness
+SEED = 1234
+enable_determinism()
+os.environ["PYTHONHASHSEED"] = str(SEED)
+random.seed(SEED)
+np.random.seed(SEED)
+tf.random.set_seed(SEED)
+
 from numpy.typing import NDArray
 from utils import TRAIN_VAL_TEST_SPLIT, find_data, get_data_path
 from utils.arg_checks import validate_split, validate_model_type
@@ -37,42 +49,42 @@ def get_param_encoding(params: tuple[float, ...], distortion: str) -> str:
     return str(int(md5((str(params) + distortion).encode("utf-8")).hexdigest(), 16))
 
 
-def encodings_to_params(
-    encodings: Union[str, List[str]]
-) -> tuple[
-    Union[paramType, list[paramType], None], Union[paramType, list[paramType], None]
-]:
-    """
-    Converts a string encoding or a list of string encodings into a set of distortion parameters
+# def encodings_to_params(
+#     encodings: Union[str, List[str]]
+# ) -> tuple[
+#     Union[paramType, list[paramType], None], Union[paramType, list[paramType], None]
+# ]:
+#     """
+#     Converts a string encoding or a list of string encodings into a set of distortion parameters
 
-    Args:
-        encodings (str | List[str]): Encodings for distortion parameters
+#     Args:
+#         encodings (str | List[str]): Encodings for distortion parameters
 
-    Returns:
-        tuple[K, P]: K and P either a set of parameters or a list of sets of parameters, depending on the input
-    """
-    # Load encoding mapping
-    with open(get_data_path("hash_to_params.json"), "r") as f:
-        try:
-            hash_to_params = json.loads(f.read())
-        except:
-            hash_to_params = {}
+#     Returns:
+#         tuple[K, P]: K and P either a set of parameters or a list of sets of parameters, depending on the input
+#     """
+#     # Load encoding mapping
+#     with open(get_data_path("hash_to_params.json"), "r") as f:
+#         try:
+#             hash_to_params = json.loads(f.read())
+#         except:
+#             hash_to_params = {}
 
-    # Case: encodings is a list
-    if isinstance(encodings, list):
-        K, P = [], []
-        for encoding in encodings:
-            if encoding not in hash_to_params:
-                print(f"Encoding {encoding} not found in hash_to_params.json")
-                continue
-            K.append(hash_to_params[encoding]["K"])
-            P.append(hash_to_params[encoding]["P"])
+#     # Case: encodings is a list
+#     if isinstance(encodings, list):
+#         K, P = [], []
+#         for encoding in encodings:
+#             if encoding not in hash_to_params:
+#                 print(f"Encoding {encoding} not found in hash_to_params.json")
+#                 continue
+#             K.append(hash_to_params[encoding]["K"])
+#             P.append(hash_to_params[encoding]["P"])
 
-    # Case: Single encoding
-    if encodings not in hash_to_params:
-        print(f"Encoding {encodings} not found in hash_to_params.json")
-        return None, None
-    return hash_to_params[encodings]["K"], hash_to_params[encodings]["P"]
+#     # Case: Single encoding
+#     if encodings not in hash_to_params:
+#         print(f"Encoding {encodings} not found in hash_to_params.json")
+#         return None, None
+#     return hash_to_params[encodings]["K"], hash_to_params[encodings]["P"]
 
 
 def get_param_split(params: paramType, distortion: str) -> str:
@@ -133,7 +145,7 @@ def create_dataset(
     if n_samples is not None:
         ds = ds.take(n_samples)
     ds = (
-        ds.batch(16)
+        ds.batch(1)
         .map(
             lambda XY, XYd, params: (process_inputs(XYd, params), XY),
             num_parallel_calls=tf.data.AUTOTUNE,
@@ -171,8 +183,8 @@ if __name__ == "__main__":
     for i, batch in tqdm(enumerate(ds), desc="Dataset", total=n):
         if i == 0:
             print(batch[0])
-        plt.figure()
-        plt.scatter(batch[0][:, 0], batch[0][:, 1])
-        plt.title(f"Batch {i}: {batch[0][0, 2:]}")
-        plt.show()
-        plt.close()
+        # plt.figure()
+        # plt.scatter(batch[0][:, 0], batch[0][:, 1])
+        # plt.title(f"Batch {i}: {batch[0][0, 2:]}")
+        # plt.show()
+        # plt.close()
