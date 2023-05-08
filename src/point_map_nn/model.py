@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import sys
 from typing import Any
@@ -74,6 +75,7 @@ def parse_args():
     parser.add_argument(
         "-c", "--checkpoint", help="Checkpoint file", type=str, default=""
     )
+    parser.add_argument("-L", "--log", action="store_true", help="Log to file")
 
     args = parser.parse_args()
     args.dir_name = os.path.join(
@@ -81,9 +83,7 @@ def parse_args():
         f"{args.model_type}_l{args.num_layers}_s{args.layer_size}_r{args.regularization}",
     )
     args.now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    args.model_dir = os.path.join(args.dir_name, f"{args.now}_model")
     args.log_file = os.path.join(args.dir_name, f"{args.now}.log")
-    args.hist_file = os.path.join(args.dir_name, f"{args.now}_history.pkl")
     args.layers = [args.layer_size] * args.num_layers
     args.reg = args.regularization
 
@@ -111,41 +111,49 @@ class PointMapNN(tf.keras.Model):
         reg,
         activation="relu",
     ):
-        super().__init__()
-        self.n_params = n_params
         self.model_type = model_type
+        self.n_params = n_params
         self.input_size = input_size
         self.layer_sizes = layer_sizes
+        self.reg = reg
+        self.activation = activation
         assert layer_sizes != [], "Layer sizes must be non-empty"
-        layers = [
-            tf.keras.layers.Dense(
-                layer_sizes[0],
-                activation=activation,
-                input_shape=(input_size,),
-                activity_regularizer=tf.keras.regularizers.l2(reg) if reg else None,
-            )
-        ]
+        input = tf.keras.layers.Input(shape=(input_size,))
+        x = tf.keras.layers.Dense(
+            layer_sizes[0],
+            activation=activation,
+            activity_regularizer=tf.keras.regularizers.L2(reg) if reg else None,
+        )(input)
         for layer_size in layer_sizes[1:]:
-            layers.append(
-                tf.keras.layers.Dense(
-                    layer_size,
-                    activation=activation,
-                    activity_regularizer=tf.keras.regularizers.L2(reg) if reg else None,
-                )
-            )
-        self.model = tf.keras.Sequential(
-            layers=layers
-            + [tf.keras.layers.Dense(2, activation="linear")]
-            # + [tf.keras.layers.BatchNormalization()]
-        )
+            x = tf.keras.layers.Dense(
+                layer_size,
+                activation=activation,
+                activity_regularizer=tf.keras.regularizers.L2(reg) if reg else None,
+            )(x)
+        out = tf.keras.layers.Dense(2, activation="linear")(x)
+        super().__init__(input, out, name=f"{model_type}_point_map_nn")
         self.compile(optimizer=tf.keras.optimizers.Adam(), loss=loss)
 
-    def call(self, x):
-        return self.model(x)
+    def get_config(self):
+        return {
+            "model_type": self.model_type,
+            "n_params": self.n_params,
+            "input_size": self.input_size,
+            "layer_sizes": self.layer_sizes,
+            "reg": self.reg,
+            "activation": self.activation,
+        }
 
-    def train(
-        self, num_epochs, history_file, model_dir, dir_name, batch_size, num_workers
-    ):
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
+
+    # def call(self, x):
+    #     return self.model(x)
+
+    def train(self, num_epochs, dir_name, batch_size, num_workers):
+        # Save config in dir_name
+        json.dump(self.get_config(), open(os.path.join(dir_name, "config.json"), "w"))
         # Load datasets
         train_ds, n_train = create_dataset(
             split="train", model_type=self.model_type, n_params=self.n_params
@@ -165,12 +173,12 @@ class PointMapNN(tf.keras.Model):
 
         checkpoints_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath=os.path.join(
-                dir_name, "checkpoints", "cp-{epoch:04d}-{val_loss:.4f}"
+                dir_name, "checkpoints", "cp-{epoch:04d}-{val_loss:.4f}.ckpt"
             ),
             monitor="val_loss",
             save_best_only=True,
+            save_weights_only=True,
         )
-
         hist = self.fit(
             train_ds.repeat(),
             epochs=num_epochs,
@@ -182,15 +190,13 @@ class PointMapNN(tf.keras.Model):
             validation_steps=n_valid,
             workers=num_workers,
             use_multiprocessing=True,
-            verbose=2,  # type: ignore
+            verbose=2 if args.log else 1,  # type: ignore
             callbacks=[checkpoints_callback],
         )
-
         print(f"Training took {time.time() - start} seconds")
 
-        # Save model and history
-        self.save(model_dir)
-        pickle.dump(hist, open(history_file, "wb"))
+        # Save history
+        pickle.dump(hist, open(os.path.join(dir_name, "history.pkl"), "wb"))
 
 
 class Model:
@@ -203,15 +209,24 @@ class Model:
     def __call__(self, *args, **kwds):
         self.predict(*args, **kwds)
 
+    def __repr__(self) -> str:
+        return f"{self.model_type} model from {self.model_dirs}"
+
+
+def load_pmnn_model(model_dir):
+    config = json.load(open(os.path.join(model_dir, "config.json"), "r"))
+    model = PointMapNN.from_config(config)
+    latest = tf.train.latest_checkpoint(os.path.join(model_dir, "checkpoints"))
+    model.load_weights(latest)
+    return model
+
 
 class CombinedPMNN(Model):
     model_type = "combined"
 
     def __init__(self, model_dir):
         self.model_dirs = [model_dir]
-        self.model: PointMapNN = tf.keras.models.load_model(model_dir)  # type: ignore
-        if self.model is None:
-            raise ValueError(f"Could not load model from {model_dir}")
+        self.model = load_pmnn_model(model_dir)
 
     def predict(self, XYd, K, P):
         return self.model.predict(self.process_inputs(XYd, K, P))
@@ -220,6 +235,8 @@ class CombinedPMNN(Model):
         params = []
         for p in args:
             params.extend(p)
+        params = tf.reshape(tf.constant(params), (-1, len(params), 1))
+        print(params.shape)
         return process_inputs(XYd, params)
 
 
@@ -228,12 +245,8 @@ class SeparatePMNN(Model):
 
     def __init__(self, radial_model_dir, tangential_model_dir):
         self.model_dirs = [radial_model_dir, tangential_model_dir]
-        self.radial_model: PointMapNN = tf.keras.models.load_model(radial_model_dir)  # type: ignore
-        self.tangential_model: PointMapNN = tf.keras.models.load_model(tangential_model_dir)  # type: ignore
-        if self.radial_model is None:
-            raise ValueError(f"Could not load model from {radial_model_dir}")
-        if self.tangential_model is None:
-            raise ValueError(f"Could not load model from {tangential_model_dir}")
+        self.radial_model = load_pmnn_model(radial_model_dir)
+        self.tangential_model = load_pmnn_model(tangential_model_dir)
 
     def predict(self, XYd, K, P):
         XY = self.tangential_model(process_inputs(XYd, P))
@@ -246,7 +259,7 @@ def loss(y_true, y_pred):
 
 
 def main(args):
-    sys.stdout = open(args.log_file, "w")
+    sys.stdout = open(args.log_file, "w") if args.log else sys.stdout
     print(args)
     # Load models
 
@@ -262,10 +275,9 @@ def main(args):
             layer_sizes=args.layers,
             reg=args.reg,
         )
+    model.summary()
     model.train(
         args.num_epochs,
-        args.hist_file,
-        args.model_dir,
         args.dir_name,
         args.batch_size,
         args.num_workers,
