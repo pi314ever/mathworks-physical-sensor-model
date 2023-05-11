@@ -132,48 +132,69 @@ def create_dataset(
         hash_to_params[f.split(os.path.sep)[-1].split(".")[0]]["params"]
         for f in file_paths
     ]
+    file_ds = tf.data.Dataset.from_tensor_slices(file_paths)
+    params_ds = tf.data.Dataset.from_tensor_slices(params_list)
 
     OUTPUT_SIGNATURE = (
         tf.TensorSpec(shape=(RESOLUTION, 2), dtype=tf.float32),  # type: ignore
         tf.TensorSpec(shape=(RESOLUTION, 2), dtype=tf.float32),  # type: ignore
         tf.TensorSpec(shape=(n_params,), dtype=tf.float32),  # type: ignore
     )
-    ds = tf.data.Dataset.from_generator(
-        _generator,
-        output_signature=OUTPUT_SIGNATURE,
-        args=(file_paths, params_list),
-    )
+    ds = tf.data.Dataset.zip((file_ds, params_ds))
     if n_samples is not None:
         ds = ds.take(n_samples)
     ds = (
-        ds.batch(32)
-        .map(
-            lambda XY, XYd, params: (process_inputs(XYd, params), XY),
+        ds.shuffle(128)
+        .batch(8)
+        .interleave(
+            lambda f, p: tf.data.Dataset.from_generator(
+                _generator,
+                output_signature=OUTPUT_SIGNATURE,
+                args=(f, p),
+            ).map(
+                lambda XY, XYd, params: (process_inputs(XYd, params), XY),
+            ),
+            # .prefetch(tf.data.AUTOTUNE),
             num_parallel_calls=tf.data.AUTOTUNE,
+            cycle_length=8,
+            block_length=2,
+            deterministic=True,
         )
-        .prefetch(tf.data.AUTOTUNE)
-        .unbatch()
     )
     samples = n_samples if n_samples is not None else len(file_paths)
     return ds, samples
 
 
+def extract_data(file_path, params):
+    # print(file_path, params)
+    # print(file_path.shape, file_path.dtype)
+    # print(params[0])
+    # print(params.shape)
+    file_path = file_path.decode()
+    try:
+        data = read_tensor(file_path)
+    except:
+        print(f"Error reading {file_path}")
+        return None
+    return data[:, :-2], data[:, -2:], params
+
+
 def _generator(file_paths, params_list):
     for file_path, params in zip(file_paths, params_list):
-        file_path = file_path.decode()
-        try:
-            data = read_tensor(file_path)
-        except:
-            print(f"Error reading {file_path}")
-            continue
-        yield data[:, :-2], data[:, -2:], params
+        yield extract_data(file_path, params)
 
 
 def process_inputs(XYd, params):
+    print(XYd.dtype, params.dtype)
+    print(params)
     input = tf.concat(
         (
-            XYd,
-            tf.repeat(tf.reshape(params, (-1, 1, params.shape[-1])), XYd.shape[-2], 1),
+            tf.squeeze(XYd),
+            tf.squeeze(
+                tf.repeat(
+                    tf.reshape(params, (-1, 1, params.shape[-1])), XYd.shape[-2], 1
+                )
+            ),
         ),
         axis=-1,
     )

@@ -188,7 +188,7 @@ class PointMapNN(tf.keras.Model):
             save_weights_only=True,
         )
         hist = self.fit(
-            train_ds.repeat(),
+            train_ds.repeat().prefetch(tf.data.AUTOTUNE),
             epochs=num_epochs,
             batch_size=batch_size,
             shuffle=True,
@@ -261,7 +261,6 @@ class SeparatePMNN(Model):
 
     def predict(self, XYd, K, P):
         XYd = tf.reshape(XYd, (-1, *XYd.shape))
-        XY = self.tangential_model()
         return self.radial_model(
             tf.squeeze(
                 process_inputs(
@@ -271,7 +270,7 @@ class SeparatePMNN(Model):
                         ),
                         (-1, *XYd.shape),
                     ),
-                    tf.constant(K),
+                    tf.constant(K, dtype=tf.float32),
                 )
             )
         )
