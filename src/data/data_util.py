@@ -50,44 +50,6 @@ def get_param_encoding(params: tuple[float, ...], distortion: str) -> str:
     return str(int(md5((str(params) + distortion).encode("utf-8")).hexdigest(), 16))
 
 
-# def encodings_to_params(
-#     encodings: Union[str, List[str]]
-# ) -> tuple[
-#     Union[paramType, list[paramType], None], Union[paramType, list[paramType], None]
-# ]:
-#     """
-#     Converts a string encoding or a list of string encodings into a set of distortion parameters
-
-#     Args:
-#         encodings (str | List[str]): Encodings for distortion parameters
-
-#     Returns:
-#         tuple[K, P]: K and P either a set of parameters or a list of sets of parameters, depending on the input
-#     """
-#     # Load encoding mapping
-#     with open(get_data_path("hash_to_params.json"), "r") as f:
-#         try:
-#             hash_to_params = json.loads(f.read())
-#         except:
-#             hash_to_params = {}
-
-#     # Case: encodings is a list
-#     if isinstance(encodings, list):
-#         K, P = [], []
-#         for encoding in encodings:
-#             if encoding not in hash_to_params:
-#                 print(f"Encoding {encoding} not found in hash_to_params.json")
-#                 continue
-#             K.append(hash_to_params[encoding]["K"])
-#             P.append(hash_to_params[encoding]["P"])
-
-#     # Case: Single encoding
-#     if encodings not in hash_to_params:
-#         print(f"Encoding {encodings} not found in hash_to_params.json")
-#         return None, None
-#     return hash_to_params[encodings]["K"], hash_to_params[encodings]["P"]
-
-
 def get_param_split(params: paramType, distortion: str) -> str:
     return np.random.default_rng(
         seed=int(get_param_encoding(params, distortion))
@@ -145,7 +107,8 @@ def create_dataset(
         ds = ds.take(n_samples)
     ds = (
         ds.shuffle(128)
-        .batch(8)
+        .batch(4)
+        .prefetch(tf.data.AUTOTUNE)
         .interleave(
             lambda f, p: tf.data.Dataset.from_generator(
                 _generator,
@@ -153,11 +116,12 @@ def create_dataset(
                 args=(f, p),
             ).map(
                 lambda XY, XYd, params: (process_inputs(XYd, params), XY),
+                num_parallel_calls=tf.data.AUTOTUNE,
             ),
             # .prefetch(tf.data.AUTOTUNE),
             num_parallel_calls=tf.data.AUTOTUNE,
             cycle_length=8,
-            block_length=2,
+            block_length=1,
             deterministic=True,
         )
     )
@@ -185,8 +149,6 @@ def _generator(file_paths, params_list):
 
 
 def process_inputs(XYd, params):
-    print(XYd.dtype, params.dtype)
-    print(params)
     input = tf.concat(
         (
             tf.squeeze(XYd),
@@ -203,6 +165,8 @@ def process_inputs(XYd, params):
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 
     ds, n = create_dataset(split="valid", model_type="combined", n_params=5)
     for i, batch in tqdm(enumerate(ds), desc="Dataset", total=n):
