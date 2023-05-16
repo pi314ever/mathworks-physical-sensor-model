@@ -20,6 +20,15 @@ if TYPE_CHECKING:
     from utils.typing import paramType
 
 
+def get_xy_range(resolution):
+    scale = max(resolution)
+    x_min, x_max = -resolution[0] / scale, resolution[0] / scale
+    y_min, y_max = -resolution[1] / scale, resolution[1] / scale
+    x_range = np.linspace(x_min, x_max, resolution[0])
+    y_range = np.linspace(y_min, y_max, resolution[1])
+    return x_range, y_range
+
+
 class PointMapModelPipeline:
     """
     Point map neural network pipeline class
@@ -65,39 +74,23 @@ class PointMapModelPipeline:
             output_resolution = images.shape[:2]
 
         # Grab output image normalized positions to feed into neural network
-        scale = max(output_resolution)
-        scale_input = max(images.shape[:2])
-
-        x_min, x_max = -output_resolution[0] / scale, output_resolution[0] / scale
-        y_min, y_max = -output_resolution[1] / scale, output_resolution[1] / scale
-        x_min_input, x_max_input = (
-            -images.shape[0] / scale_input,
-            images.shape[0] / scale_input,
-        )
-        y_min_input, y_max_input = (
-            -images.shape[1] / scale_input,
-            images.shape[1] / scale_input,
-        )
-        x_range = np.linspace(x_min, x_max, output_resolution[0])
-        y_range = np.linspace(y_min, y_max, output_resolution[1])
-        x_range_input = np.linspace(x_min_input, x_max_input, images.shape[0])
-        y_range_input = np.linspace(y_min_input, y_max_input, images.shape[1])
+        x_range, y_range = get_xy_range(output_resolution)
+        x_range_input, y_range_input = get_xy_range(images.shape[:2])
 
         # Run output point maps through neural network to get query points
-        neural_network_input = np.empty((np.prod(output_resolution), 8))
-        for i, (x, y) in enumerate(product(x_range, y_range)):
-            neural_network_input[i, :] = x, y, x**2 + y**2, *K, *P
         x_mesh, y_mesh = np.meshgrid(x_range, y_range)
         x_mesh = x_mesh.flatten()
         y_mesh = y_mesh.flatten()
         vstack = np.vstack((x_mesh, y_mesh))
         vstack = vstack.T
 
-        K_tf = np.array(K)
-        P_tf = np.array(P)
+        K_np = np.array(K, dtype=np.float64)
+        P_np = np.array(P, dtype=np.float64)
 
-        query_points = self.point_map_model.predict(vstack, K_tf, P_tf)
+        print("Running neural network")
 
+        query_points = self.point_map_model.predict(vstack, K_np, P_np)
+        print("Interpolating")
         # Interpolate on all query points
         interpolated_points_B = interpn(
             (x_range_input, y_range_input),
@@ -131,10 +124,10 @@ class PointMapModelPipeline:
 if __name__ == "__main__":
     from argparse import ArgumentParser
 
-    from model import CombinedPMNN, SeparatePMNN
+    from model import CombinedPMNN, SeparatePMNN, load_model_from_dirs
 
     parser = ArgumentParser()
-    parser.add_argument("model_paths", type=str, help="Path to model, from ")
+    parser.add_argument("model_dirs", nargs="+", type=str)
     parser.add_argument(
         "--image_path", type=str, default=get_data_path("images", "checkerboard.jpg")
     )
@@ -143,13 +136,7 @@ if __name__ == "__main__":
     if args.device == "cpu":
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
     img = read_image(args.image_path)
-    model_paths = args.model_paths.split(",")
-    if len(model_paths) == 1:
-        model = CombinedPMNN(model_paths[0])
-    elif len(model_paths) == 2:
-        model = SeparatePMNN(model_paths[0], model_paths[1])
-    else:
-        raise ValueError("Invalid number of model paths")
+    model = load_model_from_dirs(args.model_dirs)
 
     pmmp = PointMapModelPipeline(model, "nearest")
     distorted_img = pmmp(
