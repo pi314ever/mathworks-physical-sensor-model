@@ -7,6 +7,7 @@ import random
 import re
 import sys
 import time
+from typing import overload
 
 import numpy as np
 
@@ -28,75 +29,15 @@ tf.random.set_seed(SEED)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
+# Set mixed precision
+# tf.keras.mixed_precision.set_global_policy("mixed_float16")
+
 from data.data_util import RESOLUTION, create_dataset, process_inputs
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Train a neural network to predict point maps"
-    )
-    parser.add_argument(
-        "model_type",
-        help="Model type",
-        type=str,
-        choices=["combined", "radial", "tangential"],
-    )
-    parser.add_argument(
-        "-s",
-        "--layer_size",
-        help="Layer size (for all hidden layers)",
-        type=int,
-        default=16,
-    )
-    parser.add_argument(
-        "-l", "--num_layers", help="Number of hidden layers", type=int, default=4
-    )
-    parser.add_argument(
-        "-r",
-        "--regularization",
-        help="L2 regularization constant",
-        type=float,
-        default=0.0,
-    )
-    parser.add_argument(
-        "-n",
-        "--num_epochs",
-        help="Number of epochs to train for",
-        type=int,
-        default=100,
-    )
-    parser.add_argument("-b", "--batch_size", help="Batch size", type=int, default=32)
-    parser.add_argument(
-        "-w",
-        "--num_workers",
-        help="Number of workers for the fitting process",
-        type=int,
-        default=8,
-    )
-    parser.add_argument("-L", "--log", action="store_true", help="Log to file")
-
-    args = parser.parse_args()
-    args.dir_name = os.path.join(
-        "models",
-        f"{args.model_type}_l{args.num_layers}_s{args.layer_size}_r{args.regularization}",
-    )
-    args.now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    args.log_file = os.path.join(args.dir_name, f"{args.now}.log")
-    args.layers = [args.layer_size] * args.num_layers
-    args.reg = args.regularization
-
-    if args.model_type == "combined":
-        args.num_params = 5
-        args.input_size = 7
-    elif args.model_type == "radial":
-        args.num_params = 3
-        args.input_size = 5
-    elif args.model_type == "tangential":
-        args.num_params = 2
-        args.input_size = 4
-
-    os.makedirs(args.dir_name, exist_ok=True)
-    return args
+def loss(y_true, y_pred):
+    # Average L1 norm loss
+    return tf.reduce_mean(tf.reduce_sum(tf.abs((y_true - y_pred)), axis=1))
 
 
 class PointMapNN(tf.keras.Model):
@@ -187,6 +128,11 @@ class PointMapNN(tf.keras.Model):
             save_best_only=True,
             save_weights_only=True,
         )
+        tensorboard_callback = tf.keras.callbacks.TensorBoard(
+            log_dir=os.path.join(dir_name, "logs"),
+            histogram_freq=1,
+            write_steps_per_second=True,
+        )
         hist = self.fit(
             train_ds.repeat().prefetch(tf.data.AUTOTUNE),
             epochs=num_epochs,
@@ -200,7 +146,7 @@ class PointMapNN(tf.keras.Model):
             workers=num_workers,
             use_multiprocessing=True,
             verbose=2 if args.log else 1,  # type: ignore
-            callbacks=[checkpoints_callback],
+            callbacks=[checkpoints_callback, tensorboard_callback],
         )
         print(f"Training took {time.time() - start} seconds")
 
@@ -276,9 +222,85 @@ class SeparatePMNN(Model):
         )
 
 
-def loss(y_true, y_pred):
-    # Average L1 norm loss
-    return tf.reduce_mean(tf.reduce_sum(tf.abs((y_true - y_pred)), axis=1))
+def load_model_from_dirs(model_dirs) -> Model:
+    if len(model_dirs) == 1:
+        return CombinedPMNN(*model_dirs)
+    elif len(model_dirs) == 2:
+        return SeparatePMNN(*model_dirs)
+    raise ValueError(
+        f"Invalid number of model directories ({len(model_dirs)}): {model_dirs}"
+    )
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Train a neural network to predict point maps"
+    )
+    parser.add_argument(
+        "model_type",
+        help="Model type",
+        type=str,
+        choices=["combined", "radial", "tangential"],
+    )
+    parser.add_argument(
+        "-s",
+        "--layer_size",
+        help="Layer size (for all hidden layers)",
+        type=int,
+        default=16,
+    )
+    parser.add_argument(
+        "-l", "--num_layers", help="Number of hidden layers", type=int, default=4
+    )
+    parser.add_argument(
+        "-r",
+        "--regularization",
+        help="L2 regularization constant",
+        type=float,
+        default=0.0,
+    )
+    parser.add_argument(
+        "-n",
+        "--num_epochs",
+        help="Number of epochs to train for",
+        type=int,
+        default=100,
+    )
+    parser.add_argument("-b", "--batch_size", help="Batch size", type=int, default=32)
+    parser.add_argument(
+        "-w",
+        "--num_workers",
+        help="Number of workers for the fitting process",
+        type=int,
+        default=8,
+    )
+    parser.add_argument(
+        "--model_root_dir", help="Model root directory", type=str, default="models"
+    )
+    parser.add_argument("-L", "--log", action="store_true", help="Log to file")
+
+    args = parser.parse_args()
+    args.dir_name = os.path.join(
+        args.model_root_dir,
+        f"{args.model_type}_l{args.num_layers}_s{args.layer_size}_r{args.regularization}",
+    )
+    args.now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    args.log_file = os.path.join(args.dir_name, f"{args.now}.log")
+    args.layers = [args.layer_size] * args.num_layers
+    args.reg = args.regularization
+
+    if args.model_type == "combined":
+        args.num_params = 5
+        args.input_size = 7
+    elif args.model_type == "radial":
+        args.num_params = 3
+        args.input_size = 5
+    elif args.model_type == "tangential":
+        args.num_params = 2
+        args.input_size = 4
+
+    os.makedirs(args.dir_name, exist_ok=True)
+    return args
 
 
 def main(args):
