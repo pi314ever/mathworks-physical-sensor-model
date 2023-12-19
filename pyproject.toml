@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "mathworks-physical-sensor-model"
+version = "0.1.0"
+description = ""
+authors = ["pi314ever <pilotflyer824@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.9, <3.10"
+matplotlib = "^3.8.2"
+scipy = "^1.11.4"
+numpy = "^1.26.2"
+pip = "^23.3.2"
+tqdm = "^4.66.1"
+tensorflow = "2.10"
+opencv-python = "^4.8.1.78"
+opencv-python-headless = "^4.8.1.78"
+framework-reproducibility = "^0.6.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

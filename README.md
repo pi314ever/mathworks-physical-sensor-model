@@ -2,61 +2,26 @@
 
 Contributors: Daniel Huang, Felix Meng, and Jason Zhu
 
-## Introduction
+## Abstract
 
-This project aims to generate a model which can calculate distortion effects efficiently and accurately given distortion parameters and an undistorted image.
+This project aims to generate a model which can calculate distortion effects efficiently and accurately given distortion parameters and an undistorted image. There are use cases such as full-simulation training for self-driving cars, where distortion model of the camera needs to be accurately and efficiently calculated from a simulated environment. Current un-distortion algorithms utilize standard iterative methods and are not optimized for real-time applications. We present two approaches to this problem: a GAN approach (led by Felix Meng) and a function approximation method (led by Daniel Huang). The GAN method showed promising results, but needed to be trained specifically per distortion parameter and cannot be generalized. The function approximation method was less visually accurate due to the point-wise nature of the model. However, it is able to generalize to different distortion parameters and is much more efficient than the GAN method.
 
-## Setup development environment
+## Setup
 
-Python environment setup
+**Prerequisites**
+- `poetry`: Python package management tool
+- `python3.9`: Python 3.9
+- `cuda` (optional): GPU support
 
-```bash
-# Install conda from environment
-conda env create -f environment.yml
-
-# Activate conda environment
-conda activate xplore
-```
-
-Updating an existing environment
-
-```bash
-conda env update -f environment.yml --prune
-```
-
-Updating `environment.yml` file
-
-```bash
-conda env export --from-history | grep -v "prefix" > environment.yml
-```
+**Steps**
+1. Install `poetry` packages with `poetry install`
+2. Test environment setup with `poetry run pytest`
 
 ## Dataset and Data Pipeline
 
 ### Point map dataset
 
 Dataset is not included by default (git ignored). To generate the dataset, run `python src/data/generate_point_maps.py`. This will generate the dataset in `data/point_maps/` directory.
-
-### TODOs
-
-TODO: Complete list of dataset pipeline items
-- [ ] Real images dataset
-  - [ ] Gather a dataset of undistorted images
-  - [ ] Create distortion pipeline to generate distorted labels
-  - [ ] Package data into format to be used by models
-- [ ] Synthetic image dataset
-  - [ ] Generate base library of shapes and textures
-  - [ ] Generate combination library
-  - [ ] Create massive dataset of undistorted images
-  - [ ] Pre-calculate distortion $(x_{\text{distorted}}, y_{\text{distorted}})$ for each pixel $(x, y)$ in the undistorted image
-
-## Models
-
-TODO: Complete list of models to be used.
-- [ ] Deep NN with some regression loss
-- [ ] Selective supersampling and interpolation
-- [ ] Cycle-GANs
-- [ ] Traditional distortion algorithms (e.g. OpenCV) as baseline
-
 
 ## Useful Links
 
